@@ -1,3 +1,4 @@
 [submodule "model-optimization"]
 	path = model-optimization
 	url = git@github.com:arayabrain/model-optimization.git
+	branch = prunexp
