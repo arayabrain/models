@@ -242,6 +242,12 @@ def mobilenet_v1_base(inputs,
     # The atrous convolution rate parameter.
     rate = 1
 
+    if keras.backend.image_data_format() == 'channels_first':
+      inputs = keras.layers.Permute((3, 1, 2))(inputs)
+      bn_axis = 1
+    else:  # channels_last
+      bn_axis = 3
+
     net = inputs
     for i, conv_def in enumerate(conv_defs):
       end_point_base = 'Conv2d_%d' % i
@@ -366,10 +372,14 @@ def mobilenet_v1(num_classes=1000,
                                         depth_multiplier=depth_multiplier,
                                         conv_defs=conv_defs)
     with tf.compat.v1.variable_scope('Logits'):
+      if keras.backend.image_data_format() == 'channels_first':
+        _axis = [2, 3]
+      else:  # channels_last
+        _axis = [1, 2]
       if global_pool:
         # Global average pooling.
         net = tf.reduce_mean(
-            input_tensor=net, axis=[1, 2], keepdims=True, name='global_pool')
+            input_tensor=net, axis=_axis, keepdims=True, name='global_pool')
         end_points['global_pool'] = net
       else:
         # Pooling with a fixed kernel size.
@@ -388,11 +398,12 @@ def mobilenet_v1(num_classes=1000,
           num_classes, [1, 1], activation=None,
           name='Conv2d_1c_1x1')(net)
       if spatial_squeeze:
-        logits = tf.squeeze(logits, [1, 2], name='SpatialSqueeze')
+        logits = tf.squeeze(logits, _axis, name='SpatialSqueeze')
       end_points['Logits'] = logits
       if prediction_fn:
         end_points['Predictions'] = prediction_fn(name='Predictions')(logits)
-  model = keras.models.Model(inputs, [logits, end_points], name='mobilenetV1')
+  model = keras.models.Model(inputs, logits, name='mobilenetV1')
+  # model = keras.models.Model(inputs, [logits, end_points], name='mobilenetV1')
   return model
 
 
