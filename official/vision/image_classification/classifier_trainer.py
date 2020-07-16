@@ -43,13 +43,15 @@ from official.vision.image_classification.configs import configs
 from official.vision.image_classification.efficientnet import efficientnet_model
 from official.vision.image_classification.resnet import common
 from official.vision.image_classification.resnet import resnet_model
+from official.vision.image_classification.mobilenet_v1 import mobilenet_v1_model
 
 
 def get_models() -> Mapping[str, tf.keras.Model]:
   """Returns the mapping from model type name to Keras model."""
-  return  {
+  return {
       'efficientnet': efficientnet_model.EfficientNet.from_name,
       'resnet': resnet_model.resnet50,
+      'mobilenet_v1': mobilenet_v1_model.mobilenet_v1
   }
 
 
