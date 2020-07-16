@@ -108,8 +108,9 @@ from __future__ import print_function
 from collections import namedtuple
 import functools
 
-import tensorflow.compat.v1 as tf
-import tf_slim as slim
+import tensorflow as tf
+
+keras = tf.keras
 
 # Conv and DepthSepConv namedtuple define layers of the MobileNet architecture
 # Conv defines 3x3 convolution layers
@@ -230,85 +231,90 @@ def mobilenet_v1_base(inputs,
   padding = 'SAME'
   if use_explicit_padding:
     padding = 'VALID'
-  with tf.variable_scope(scope, 'MobilenetV1', [inputs]):
-    with slim.arg_scope([slim.conv2d, slim.separable_conv2d], padding=padding):
-      # The current_stride variable keeps track of the output stride of the
-      # activations, i.e., the running product of convolution strides up to the
-      # current network layer. This allows us to invoke atrous convolution
-      # whenever applying the next convolution would result in the activations
-      # having output stride larger than the target output_stride.
-      current_stride = 1
+  with tf.compat.v1.variable_scope(scope, 'MobilenetV1', [inputs]):
+    # The current_stride variable keeps track of the output stride of the
+    # activations, i.e., the running product of convolution strides up to the
+    # current network layer. This allows us to invoke atrous convolution
+    # whenever applying the next convolution would result in the activations
+    # having output stride larger than the target output_stride.
+    current_stride = 1
 
-      # The atrous convolution rate parameter.
-      rate = 1
+    # The atrous convolution rate parameter.
+    rate = 1
 
-      net = inputs
-      for i, conv_def in enumerate(conv_defs):
-        end_point_base = 'Conv2d_%d' % i
+    net = inputs
+    for i, conv_def in enumerate(conv_defs):
+      end_point_base = 'Conv2d_%d' % i
 
-        if output_stride is not None and current_stride == output_stride:
-          # If we have reached the target output_stride, then we need to employ
-          # atrous convolution with stride=1 and multiply the atrous rate by the
-          # current unit's stride for use in subsequent layers.
-          layer_stride = 1
-          layer_rate = rate
-          rate *= conv_def.stride
-        else:
-          layer_stride = conv_def.stride
-          layer_rate = 1
-          current_stride *= conv_def.stride
+      if output_stride is not None and current_stride == output_stride:
+        # If we have reached the target output_stride, then we need to employ
+        # atrous convolution with stride=1 and multiply the atrous rate by the
+        # current unit's stride for use in subsequent layers.
+        layer_stride = 1
+        layer_rate = rate
+        rate *= conv_def.stride
+      else:
+        layer_stride = conv_def.stride
+        layer_rate = 1
+        current_stride *= conv_def.stride
 
-        if isinstance(conv_def, Conv):
-          end_point = end_point_base
-          if use_explicit_padding:
-            net = _fixed_padding(net, conv_def.kernel)
-          net = slim.conv2d(net, depth(conv_def.depth), conv_def.kernel,
-                            stride=conv_def.stride,
-                            scope=end_point)
-          end_points[end_point] = net
-          if end_point == final_endpoint:
-            return net, end_points
+      if isinstance(conv_def, Conv):
+        end_point = end_point_base
+        if use_explicit_padding:
+          net = _fixed_padding(net, conv_def.kernel)
+        net = keras.layers.Conv2D(
+            depth(conv_def.depth), conv_def.kernel,
+            strides=conv_def.stride,
+            padding=padding,
+            name=end_point)(net)
+        end_points[end_point] = net
+        if end_point == final_endpoint:
+          return net, end_points
 
-        elif isinstance(conv_def, DepthSepConv):
-          end_point = end_point_base + '_depthwise'
+      elif isinstance(conv_def, DepthSepConv):
+        end_point = end_point_base + '_depthwise'
 
-          # By passing filters=None
-          # separable_conv2d produces only a depthwise convolution layer
-          if use_explicit_padding:
-            net = _fixed_padding(net, conv_def.kernel, layer_rate)
-          net = slim.separable_conv2d(net, None, conv_def.kernel,
-                                      depth_multiplier=1,
-                                      stride=layer_stride,
-                                      rate=layer_rate,
-                                      scope=end_point)
+        # By passing filters=None
+        # separable_conv2d produces only a depthwise convolution layer
+        if use_explicit_padding:
+          net = _fixed_padding(net, conv_def.kernel, layer_rate)
 
-          end_points[end_point] = net
-          if end_point == final_endpoint:
-            return net, end_points
+        net = keras.layers.DepthwiseConv2D(
+            conv_def.kernel,
+            depth_multiplier=1,
+            strides=layer_stride,
+            padding=padding,
+            name=end_point)(net)
 
-          end_point = end_point_base + '_pointwise'
+        end_points[end_point] = net
+        if end_point == final_endpoint:
+          return net, end_points
 
-          net = slim.conv2d(net, depth(conv_def.depth), [1, 1],
-                            stride=1,
-                            scope=end_point)
+        end_point = end_point_base + '_pointwise'
 
-          end_points[end_point] = net
-          if end_point == final_endpoint:
-            return net, end_points
-        else:
-          raise ValueError('Unknown convolution type %s for layer %d'
-                           % (conv_def.ltype, i))
+        net = keras.layers.Conv2D(
+            depth(conv_def.depth), [1, 1],
+            strides=1,
+            padding=padding,
+            name=end_point)(net)
+
+        end_points[end_point] = net
+        if end_point == final_endpoint:
+          return net, end_points
+      else:
+        raise ValueError('Unknown convolution type %s for layer %d'
+                         % (conv_def.ltype, i))
   raise ValueError('Unknown final endpoint %s' % final_endpoint)
 
 
-def mobilenet_v1(inputs,
-                 num_classes=1000,
-                 dropout_keep_prob=0.999,
+def mobilenet_v1(num_classes=1000,
+                 batch_size=None,
+                 dropout_prob=0.001,
                  is_training=True,
                  min_depth=8,
                  depth_multiplier=1.0,
                  conv_defs=None,
-                 prediction_fn=slim.softmax,
+                 prediction_fn=keras.layers.Softmax,
                  spatial_squeeze=True,
                  reuse=None,
                  scope='MobilenetV1',
@@ -316,11 +322,10 @@ def mobilenet_v1(inputs,
   """Mobilenet v1 model for classification.
 
   Args:
-    inputs: a tensor of shape [batch_size, height, width, channels].
     num_classes: number of predicted classes. If 0 or None, the logits layer
       is omitted and the input features to the logits layer (before dropout)
       are returned instead.
-    dropout_keep_prob: the percentage of activation values that are retained.
+    dropout_prob: the percentage of activation values that are droped.
     is_training: whether is training or not.
     min_depth: Minimum depth value (number of channels) for all convolution ops.
       Enforced when depth_multiplier < 1, and not an active constraint when
@@ -351,43 +356,45 @@ def mobilenet_v1(inputs,
   Raises:
     ValueError: Input rank is invalid.
   """
-  input_shape = inputs.get_shape().as_list()
-  if len(input_shape) != 4:
-    raise ValueError('Invalid input tensor rank, expected 4, was: %d' %
-                     len(input_shape))
+  input_shape = (224, 224, 3)
+  inputs = keras.layers.Input(shape=input_shape, batch_size=batch_size)
 
-  with tf.variable_scope(
-      scope, 'MobilenetV1', [inputs], reuse=reuse) as scope:
-    with slim.arg_scope([slim.batch_norm, slim.dropout],
-                        is_training=is_training):
-      net, end_points = mobilenet_v1_base(inputs, scope=scope,
-                                          min_depth=min_depth,
-                                          depth_multiplier=depth_multiplier,
-                                          conv_defs=conv_defs)
-      with tf.variable_scope('Logits'):
-        if global_pool:
-          # Global average pooling.
-          net = tf.reduce_mean(
-              input_tensor=net, axis=[1, 2], keepdims=True, name='global_pool')
-          end_points['global_pool'] = net
-        else:
-          # Pooling with a fixed kernel size.
-          kernel_size = _reduced_kernel_size_for_small_input(net, [7, 7])
-          net = slim.avg_pool2d(net, kernel_size, padding='VALID',
-                                scope='AvgPool_1a')
-          end_points['AvgPool_1a'] = net
-        if not num_classes:
-          return net, end_points
-        # 1 x 1 x 1024
-        net = slim.dropout(net, keep_prob=dropout_keep_prob, scope='Dropout_1b')
-        logits = slim.conv2d(net, num_classes, [1, 1], activation_fn=None,
-                             normalizer_fn=None, scope='Conv2d_1c_1x1')
-        if spatial_squeeze:
-          logits = tf.squeeze(logits, [1, 2], name='SpatialSqueeze')
+  with tf.compat.v1.variable_scope(
+          scope, 'MobilenetV1', [inputs], reuse=reuse) as scope:
+    net, end_points = mobilenet_v1_base(inputs, scope=scope,
+                                        min_depth=min_depth,
+                                        depth_multiplier=depth_multiplier,
+                                        conv_defs=conv_defs)
+    with tf.compat.v1.variable_scope('Logits'):
+      if global_pool:
+        # Global average pooling.
+        net = tf.reduce_mean(
+            input_tensor=net, axis=[1, 2], keepdims=True, name='global_pool')
+        end_points['global_pool'] = net
+      else:
+        # Pooling with a fixed kernel size.
+        kernel_size = _reduced_kernel_size_for_small_input(net, [7, 7])
+        net = keras.layers.AveragePooling2D(
+            kernel_size, padding='valid',
+            name='AvgPool_1a')(net)
+        end_points['AvgPool_1a'] = net
+      if not num_classes:
+        return net, end_points
+      # 1 x 1 x 1024
+      net = keras.layers.Dropout(
+          rate=dropout_prob,
+          name='Dropout_1b')(net, training=is_training)
+      logits = keras.layers.Conv2D(
+          num_classes, [1, 1], activation=None,
+          name='Conv2d_1c_1x1')(net)
+      if spatial_squeeze:
+        logits = tf.squeeze(logits, [1, 2], name='SpatialSqueeze')
       end_points['Logits'] = logits
       if prediction_fn:
-        end_points['Predictions'] = prediction_fn(logits, scope='Predictions')
-  return logits, end_points
+        end_points['Predictions'] = prediction_fn(name='Predictions')(logits)
+  model = keras.models.Model(inputs, [logits, end_points], name='mobilenetV1')
+  return model
+
 
 mobilenet_v1.default_image_size = 224
 
@@ -425,55 +432,55 @@ def _reduced_kernel_size_for_small_input(input_tensor, kernel_size):
   return kernel_size_out
 
 
-def mobilenet_v1_arg_scope(
-    is_training=True,
-    weight_decay=0.00004,
-    stddev=0.09,
-    regularize_depthwise=False,
-    batch_norm_decay=0.9997,
-    batch_norm_epsilon=0.001,
-    batch_norm_updates_collections=tf.GraphKeys.UPDATE_OPS,
-    normalizer_fn=slim.batch_norm):
-  """Defines the default MobilenetV1 arg scope.
+# def mobilenet_v1_arg_scope(
+  #   is_training=True,
+  #   weight_decay=0.00004,
+  #   stddev=0.09,
+  #   regularize_depthwise=False,
+  #   batch_norm_decay=0.9997,
+  #   batch_norm_epsilon=0.001,
+  #   batch_norm_updates_collections=tf.GraphKeys.UPDATE_OPS,
+  #   normalizer_fn=slim.batch_norm):
+  # """Defines the default MobilenetV1 arg scope.
 
-  Args:
-    is_training: Whether or not we're training the model. If this is set to
-      None, the parameter is not added to the batch_norm arg_scope.
-    weight_decay: The weight decay to use for regularizing the model.
-    stddev: The standard deviation of the trunctated normal weight initializer.
-    regularize_depthwise: Whether or not apply regularization on depthwise.
-    batch_norm_decay: Decay for batch norm moving average.
-    batch_norm_epsilon: Small float added to variance to avoid dividing by zero
-      in batch norm.
-    batch_norm_updates_collections: Collection for the update ops for
-      batch norm.
-    normalizer_fn: Normalization function to apply after convolution.
+  # Args:
+  #   is_training: Whether or not we're training the model. If this is set to
+  #     None, the parameter is not added to the batch_norm arg_scope.
+  #   weight_decay: The weight decay to use for regularizing the model.
+  #   stddev: The standard deviation of the trunctated normal weight initializer.
+  #   regularize_depthwise: Whether or not apply regularization on depthwise.
+  #   batch_norm_decay: Decay for batch norm moving average.
+  #   batch_norm_epsilon: Small float added to variance to avoid dividing by zero
+  #     in batch norm.
+  #   batch_norm_updates_collections: Collection for the update ops for
+  #     batch norm.
+  #   normalizer_fn: Normalization function to apply after convolution.
 
-  Returns:
-    An `arg_scope` to use for the mobilenet v1 model.
-  """
-  batch_norm_params = {
-      'center': True,
-      'scale': True,
-      'decay': batch_norm_decay,
-      'epsilon': batch_norm_epsilon,
-      'updates_collections': batch_norm_updates_collections,
-  }
-  if is_training is not None:
-    batch_norm_params['is_training'] = is_training
+  # Returns:
+  #   An `arg_scope` to use for the mobilenet v1 model.
+  # """
+  # batch_norm_params = {
+  #     'center': True,
+  #     'scale': True,
+  #     'decay': batch_norm_decay,
+  #     'epsilon': batch_norm_epsilon,
+  #     'updates_collections': batch_norm_updates_collections,
+  # }
+  # if is_training is not None:
+  #   batch_norm_params['is_training'] = is_training
 
-  # Set weight_decay for weights in Conv and DepthSepConv layers.
-  weights_init = tf.truncated_normal_initializer(stddev=stddev)
-  regularizer = slim.l2_regularizer(weight_decay)
-  if regularize_depthwise:
-    depthwise_regularizer = regularizer
-  else:
-    depthwise_regularizer = None
-  with slim.arg_scope([slim.conv2d, slim.separable_conv2d],
-                      weights_initializer=weights_init,
-                      activation_fn=tf.nn.relu6, normalizer_fn=normalizer_fn):
-    with slim.arg_scope([slim.batch_norm], **batch_norm_params):
-      with slim.arg_scope([slim.conv2d], weights_regularizer=regularizer):
-        with slim.arg_scope([slim.separable_conv2d],
-                            weights_regularizer=depthwise_regularizer) as sc:
-          return sc
+  # # Set weight_decay for weights in Conv and DepthSepConv layers.
+  # weights_init = tf.truncated_normal_initializer(stddev=stddev)
+  # regularizer = slim.l2_regularizer(weight_decay)
+  # if regularize_depthwise:
+  #   depthwise_regularizer = regularizer
+  # else:
+  #   depthwise_regularizer = None
+  # with slim.arg_scope([slim.conv2d, slim.separable_conv2d],
+  #                     weights_initializer=weights_init,
+  #                     activation=tf.nn.relu6, normalizer_fn=normalizer_fn):
+  #   with slim.arg_scope([slim.batch_norm], **batch_norm_params):
+  #     with slim.arg_scope([slim.conv2d], weights_regularizer=regularizer):
+  #       with slim.arg_scope([slim.separable_conv2d],
+  #                           weights_regularizer=depthwise_regularizer) as sc:
+  #         return sc
