@@ -174,7 +174,8 @@ def mobilenet_v1_base(inputs,
                       conv_defs=None,
                       output_stride=None,
                       use_explicit_padding=False,
-                      scope=None):
+                      scope=None,
+                      is_training=True):
   """Mobilenet v1.
 
   Constructs a Mobilenet v1 network from inputs to the given final endpoint.
@@ -272,7 +273,16 @@ def mobilenet_v1_base(inputs,
             depth(conv_def.depth), conv_def.kernel,
             strides=conv_def.stride,
             padding=padding,
+            use_bias=False,
+            activation=None,
+            kernel_initializer=tf.compat.v1.truncated_normal_initializer(stddev=0.09),
+            kernel_regularizer=keras.regularizers.l2(l=0.00004),
             name=end_point)(net)
+        net = keras.layers.BatchNormalization(
+            axis=bn_axis, momentum=0.9997, epsilon=0.001,
+            center=True, scale=True, name=end_point + '/BN')(net, training=is_training)
+        net = keras.layers.ReLU(max_value=6.0, name=end_point + '/ReLU6')(net)
+
         end_points[end_point] = net
         if end_point == final_endpoint:
           return net, end_points
@@ -290,7 +300,14 @@ def mobilenet_v1_base(inputs,
             depth_multiplier=1,
             strides=layer_stride,
             padding=padding,
+            use_bias=False,
+            activation=None,
+            depthwise_initializer=tf.compat.v1.truncated_normal_initializer(stddev=0.09),
             name=end_point)(net)
+        net = keras.layers.BatchNormalization(
+            axis=bn_axis, momentum=0.9997, epsilon=0.001,
+            center=True, scale=True, name=end_point + '/BN')(net, training=is_training)
+        net = keras.layers.ReLU(max_value=6.0, name=end_point + '/ReLU6')(net)
 
         end_points[end_point] = net
         if end_point == final_endpoint:
@@ -302,7 +319,15 @@ def mobilenet_v1_base(inputs,
             depth(conv_def.depth), [1, 1],
             strides=1,
             padding=padding,
+            use_bias=False,
+            activation=None,
+            kernel_initializer=tf.compat.v1.truncated_normal_initializer(stddev=0.09),
+            kernel_regularizer=keras.regularizers.l2(l=0.00004),
             name=end_point)(net)
+        net = keras.layers.BatchNormalization(
+            axis=bn_axis, momentum=0.9997, epsilon=0.001,
+            center=True, scale=True, name=end_point + '/BN')(net, training=is_training)
+        net = keras.layers.ReLU(max_value=6.0, name=end_point + '/ReLU6')(net)
 
         end_points[end_point] = net
         if end_point == final_endpoint:
@@ -370,7 +395,8 @@ def mobilenet_v1(num_classes=1000,
     net, end_points = mobilenet_v1_base(inputs, scope=scope,
                                         min_depth=min_depth,
                                         depth_multiplier=depth_multiplier,
-                                        conv_defs=conv_defs)
+                                        conv_defs=conv_defs,
+                                        is_training=is_training)
     with tf.compat.v1.variable_scope('Logits'):
       if keras.backend.image_data_format() == 'channels_first':
         _axis = [2, 3]
@@ -396,12 +422,15 @@ def mobilenet_v1(num_classes=1000,
           name='Dropout_1b')(net, training=is_training)
       logits = keras.layers.Conv2D(
           num_classes, [1, 1], activation=None,
+          kernel_initializer=tf.compat.v1.truncated_normal_initializer(stddev=0.09),
+          kernel_regularizer=keras.regularizers.l2(l=0.00004),
           name='Conv2d_1c_1x1')(net)
       if spatial_squeeze:
         logits = tf.squeeze(logits, _axis, name='SpatialSqueeze')
       end_points['Logits'] = logits
       if prediction_fn:
-        end_points['Predictions'] = prediction_fn(name='Predictions')(logits)
+        logits = prediction_fn(name='Predictions')(logits)
+        end_points['Predictions'] = logits
   model = keras.models.Model(inputs, logits, name='mobilenetV1')
   # model = keras.models.Model(inputs, [logits, end_points], name='mobilenetV1')
   return model
