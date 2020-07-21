@@ -285,6 +285,14 @@ def define_classifier_flags():
       'log_steps',
       default=100,
       help='The interval of steps between logging of batch level stats.')
+  flags.DEFINE_integer(
+      'verbose',
+      default=1,
+      help='0, 1, or 2. Verbosity mode.'
+      '0 = silent, 1 = progress bar, 2 = one line per epoch.'
+      'Note that the progress bar is not particularly useful when logged to a file, '
+      'so verbose=2 is recommended when not running interactively '
+      '(eg, in a production environment).')
 
 
 def serialize_config(params: base_configs.ExperimentConfig,
@@ -389,6 +397,7 @@ def train_and_eval(
       steps_per_epoch=train_steps,
       initial_epoch=initial_epoch,
       callbacks=callbacks,
+      verbose=flags.FLAGS.verbose,
       **validation_kwargs)
 
   validation_output = None
