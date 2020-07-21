@@ -33,7 +33,6 @@ def get_callbacks(model_checkpoint: bool = True,
                   time_history: bool = True,
                   track_lr: bool = True,
                   write_model_weights: bool = True,
-                  initial_step: int = 0,
                   batch_size: int = 0,
                   log_steps: int = 0,
                   model_dir: str = None) -> List[tf.keras.callbacks.Callback]:
@@ -50,7 +49,6 @@ def get_callbacks(model_checkpoint: bool = True,
         CustomTensorBoard(
             log_dir=model_dir,
             track_lr=track_lr,
-            initial_step=initial_step,
             write_images=write_model_weights))
   if time_history:
     callbacks.append(
@@ -80,7 +78,6 @@ class CustomTensorBoard(tf.keras.callbacks.TensorBoard):
     log_dir: the path of the directory where to save the log files to be parsed
       by TensorBoard.
     track_lr: `bool`, whether or not to track the global learning rate.
-    initial_step: the initial step, used for preemption recovery.
     **kwargs: Additional arguments for backwards compatibility. Possible key is
       `period`.
   """
@@ -91,60 +88,19 @@ class CustomTensorBoard(tf.keras.callbacks.TensorBoard):
   def __init__(self,
                log_dir: str,
                track_lr: bool = False,
-               initial_step: int = 0,
                **kwargs):
     super(CustomTensorBoard, self).__init__(log_dir=log_dir, **kwargs)
-    self.step = initial_step
     self._track_lr = track_lr
 
-  def on_batch_begin(self,
-                     epoch: int,
-                     logs: MutableMapping[str, Any] = None) -> None:
-    self.step += 1
-    if logs is None:
-      logs = {}
-    logs.update(self._calculate_metrics())
-    super(CustomTensorBoard, self).on_batch_begin(epoch, logs)
-
-  def on_epoch_begin(self,
-                     epoch: int,
-                     logs: MutableMapping[str, Any] = None) -> None:
-    if logs is None:
-      logs = {}
-    metrics = self._calculate_metrics()
-    logs.update(metrics)
-    for k, v in metrics.items():
-      logging.info('Current %s: %f', k, v)
-    super(CustomTensorBoard, self).on_epoch_begin(epoch, logs)
-
-  def on_epoch_end(self,
-                   epoch: int,
-                   logs: MutableMapping[str, Any] = None) -> None:
-    if logs is None:
-      logs = {}
-    metrics = self._calculate_metrics()
-    logs.update(metrics)
-    super(CustomTensorBoard, self).on_epoch_end(epoch, logs)
-
-  def _calculate_metrics(self) -> MutableMapping[str, Any]:
-    logs = {}
-    # TODO(b/149030439): disable LR reporting.
-    if self._track_lr:
-      logs['learning_rate'] = self._calculate_lr()
+  def _collect_learning_rate(self, logs):
+    logs = logs or {}
+    lr_schedule = getattr(self.model.optimizer, "lr", None)
+    if isinstance(lr_schedule, tf.keras.optimizers.schedules.LearningRateSchedule):
+        logs["learning_rate"] = tf.keras.backend.get_value(
+            lr_schedule(self.model.optimizer.iterations)
+        )
     return logs
 
-  def _calculate_lr(self) -> int:
-    """Calculates the learning rate given the current step."""
-    return get_scalar_from_tensor(
-        self._get_base_optimizer()._decayed_lr(var_dtype=tf.float32))
-
-  def _get_base_optimizer(self) -> tf.keras.optimizers.Optimizer:
-    """Get the base optimizer used by the current model."""
-
-    optimizer = self.model.optimizer
-
-    # The optimizer might be wrapped by another class, so unwrap it
-    while hasattr(optimizer, '_optimizer'):
-      optimizer = optimizer._optimizer  # pylint:disable=protected-access
-
-    return optimizer
+  def _log_metrics(self, logs, prefix, step):
+    if self._track_lr:
+      super()._log_metrics(self._collect_learning_rate(logs), prefix, step)

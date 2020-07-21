@@ -370,7 +370,6 @@ def train_and_eval(
       time_history=params.train.callbacks.enable_time_history,
       track_lr=params.train.tensorboard.track_lr,
       write_model_weights=params.train.tensorboard.write_model_weights,
-      initial_step=initial_epoch * train_steps,
       batch_size=train_builder.global_batch_size,
       log_steps=params.train.time_history.log_steps,
       model_dir=params.model_dir)
