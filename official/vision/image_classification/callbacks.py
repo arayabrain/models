@@ -129,8 +129,8 @@ class CustomTensorBoard(tf.keras.callbacks.TensorBoard):
   def _calculate_metrics(self) -> MutableMapping[str, Any]:
     logs = {}
     # TODO(b/149030439): disable LR reporting.
-    # if self._track_lr:
-    #   logs['learning_rate'] = self._calculate_lr()
+    if self._track_lr:
+      logs['learning_rate'] = self._calculate_lr()
     return logs
 
   def _calculate_lr(self) -> int:
