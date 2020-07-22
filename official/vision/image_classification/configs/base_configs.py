@@ -197,6 +197,7 @@ class ModelConfig(base_config.Config):
 
   Attributes:
     name: The name of the model. Defaults to None.
+    model_weights_path: Path to weight file. Defaults to None.
     model_params: The parameters used to create the model. Defaults to None.
     num_classes: The number of classes in the model. Defaults to None.
     loss: A `LossConfig` instance. Defaults to None.
@@ -204,6 +205,7 @@ class ModelConfig(base_config.Config):
 
   """
   name: str = None
+  model_weights_path: str = None
   model_params: Mapping[str, Any] = None
   num_classes: int = None
   loss: LossConfig = None
