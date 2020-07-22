@@ -412,6 +412,45 @@ def train_and_eval(
   return stats
 
 
+def evaluate(
+    params: base_configs.ExperimentConfig,
+    strategy_override: tf.distribute.Strategy) -> Mapping[str, Any]:
+  logging.info('Running evaluation.')
+
+  # Note: for TPUs, strategy and scope should be created before the dataset
+  strategy = strategy_override or distribution_utils.get_distribution_strategy(
+      distribution_strategy=params.runtime.distribution_strategy,
+      all_reduce_alg=params.runtime.all_reduce_alg,
+      num_gpus=params.runtime.num_gpus,
+      tpu_address=params.runtime.tpu)
+
+  strategy_scope = distribution_utils.get_strategy_scope(strategy)
+
+  logging.info('Detected %d devices.',
+               strategy.num_replicas_in_sync if strategy else 1)
+
+  label_smoothing = params.model.loss.label_smoothing
+  one_hot = label_smoothing and label_smoothing > 0
+  builders = _get_dataset_builders(params, strategy, one_hot)
+  datasets = [builder.build() if builder else None for builder in builders]
+
+  # Unpack datasets and builders based on train/val/test splits
+  _, validation_builder = builders  # pylint: disable=unbalanced-tuple-unpacking
+  _, validation_dataset = datasets
+
+  validation_steps = params.evaluation.steps or validation_builder.num_steps
+
+  with strategy_scope:
+    model_params = params.model.model_params.as_dict()
+    model = get_models()[params.model.name](**model_params)
+
+  validation_output = model.evaluate(
+      validation_dataset, steps=validation_steps, verbose=2)
+
+  stats = common.build_stats(False, validation_output, False)
+  return stats
+
+
 def export(params: base_configs.ExperimentConfig):
   """Runs the model export functionality."""
   logging.info('Exporting model.')
@@ -441,6 +480,8 @@ def run(flags_obj: flags.FlagValues,
   params = _get_params_from_flags(flags_obj)
   if params.mode == 'train_and_eval':
     return train_and_eval(params, strategy_override)
+  elif params.mode == 'eval':
+    return evaluate(params)
   elif params.mode == 'export_only':
     export(params)
   else:
