@@ -198,6 +198,33 @@ class ClassifierTest(tf.test.TestCase, parameterized.TestCase):
     with self.assertRaises(ValueError):
       run_end_to_end(main=run, extra_flags=extra_flags, model_dir=model_dir)
 
+  @combinations.generate(distribution_strategy_combinations())
+  def test_eval(self, distribution, model, dataset):
+    """Test eval mode."""
+    model_dir = self.get_temp_dir()
+    extra_flags = [
+        '--mode=eval',
+        '--data_dir=not_used',
+        '--mode=invalid_mode',
+        '--model_type=' + model,
+        '--dataset=' + dataset,
+        get_params_override(basic_params_override()),
+    ]
+    eval_train_data_flags = extra_flags + [
+        get_params_override(
+            {
+                'evaluation': {
+                    'eval_data': 'train',
+                },
+            }
+        ),
+    ]
+
+    run = functools.partial(classifier_trainer.run,
+                            strategy_override=distribution)
+    with self.assertRaises(ValueError):
+      run_end_to_end(main=run, extra_flags=extra_flags, model_dir=model_dir)
+      run_end_to_end(main=run, extra_flags=eval_train_data_flags, model_dir=model_dir)
 
 class UtilTests(parameterized.TestCase, tf.test.TestCase):
   """Tests for individual utility functions within classifier_trainer.py."""
