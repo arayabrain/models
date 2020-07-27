@@ -107,6 +107,7 @@ class EvalConfig(base_config.Config):
 
   """
   epochs_between_evals: int = None
+  eval_data: str = 'validation'
   steps: int = None
   skip_eval: bool = False
 

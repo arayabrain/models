@@ -375,6 +375,7 @@ def train_and_eval(
         time_history=params.train.callbacks.enable_time_history,
         track_lr=params.train.tensorboard.track_lr,
         write_model_weights=params.train.tensorboard.write_model_weights,
+        initial_step=initial_epoch * train_steps,
         batch_size=train_builder.global_batch_size,
         log_steps=params.train.time_history.log_steps,
         model_dir=params.model_dir)
@@ -397,15 +398,22 @@ def train_and_eval(
         steps_per_epoch=train_steps,
         initial_epoch=initial_epoch,
         callbacks=callbacks,
-        verbose=flags.FLAGS.verbose,
         **validation_kwargs)
   elif params.mode == 'eval':
     history = None
 
   validation_output = None
   if not params.evaluation.skip_eval or params.mode == 'eval':
+    if params.evaluation.eval_data == 'train':
+      eval_dataset = train_dataset
+      eval_steps = train_steps
+    elif params.evaluation.eval_data == 'validation':
+      eval_dataset = validation_dataset
+      eval_steps = validation_steps
+
+    logging.info('Evaluate %s data', params.evaluation.eval_data)
     validation_output = model.evaluate(
-        validation_dataset, steps=validation_steps, verbose=2, return_dict=True)
+        eval_dataset, steps=eval_steps, verbose=2, return_dict=True)
 
   # TODO(dankondratyuk): eval and save final test accuracy
   stats = common.build_stats(history,
