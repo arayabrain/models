@@ -405,7 +405,7 @@ def train_and_eval(
   validation_output = None
   if not params.evaluation.skip_eval or params.mode == 'eval':
     validation_output = model.evaluate(
-        validation_dataset, steps=validation_steps, verbose=2)
+        validation_dataset, steps=validation_steps, verbose=2, return_dict=True)
 
   # TODO(dankondratyuk): eval and save final test accuracy
   stats = common.build_stats(history,
