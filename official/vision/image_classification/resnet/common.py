@@ -29,7 +29,6 @@ from official.utils.misc import keras_utils
 
 FLAGS = flags.FLAGS
 BASE_LEARNING_RATE = 0.1  # This matches Jing's version.
-TRAIN_TOP_1 = 'training_accuracy_top_1'
 LR_SCHEDULE = [    # (multiplier, epoch to start) tuples
     (1.0, 5), (0.1, 30), (0.01, 60), (0.001, 80)
 ]
@@ -172,12 +171,13 @@ def build_stats(history, eval_output, callbacks):
     # Gets final loss from training.
     stats['training_loss'] = float(train_hist['loss'][-1])
     # Gets top_1 training accuracy.
+    TRAIN_TOP_1 = 'training_accuracy'
     if 'categorical_accuracy' in train_hist:
-      stats['training_accuracy'] = float(train_hist['categorical_accuracy'][-1])
+      stats[TRAIN_TOP_1] = float(train_hist['categorical_accuracy'][-1])
     elif 'sparse_categorical_accuracy' in train_hist:
-      stats['training_accuracy'] = float(train_hist['sparse_categorical_accuracy'][-1])
+      stats[TRAIN_TOP_1] = float(train_hist['sparse_categorical_accuracy'][-1])
     elif 'accuracy' in train_hist:
-      stats['training_accuracy'] = float(train_hist['accuracy'][-1])
+      stats[TRAIN_TOP_1] = float(train_hist['accuracy'][-1])
 
   if not callbacks:
     return stats
