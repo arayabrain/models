@@ -333,6 +333,13 @@ def train_and_eval(
   with strategy_scope:
     model_params = params.model.model_params.as_dict()
     model = get_models()[params.model.name](**model_params)
+    if params.model.model_weights_path:
+      if os.path.isdir(params.model.model_weights_path):
+        checkpoint = tf.train.latest_checkpoint(params.model.model_weights_path)
+      else:
+        checkpoint = params.model.model_weights_path
+      logging.info('Load weights from  %s', checkpoint)
+      model.load_weights(checkpoint)
     learning_rate = optimizer_factory.build_learning_rate(
         params=params.model.learning_rate,
         batch_size=train_builder.global_batch_size,
@@ -359,19 +366,21 @@ def train_and_eval(
       initial_epoch = resume_from_checkpoint(model=model,
                                              model_dir=params.model_dir,
                                              train_steps=train_steps)
-
-  serialize_config(params=params, model_dir=params.model_dir)
-  # TODO(dankondratyuk): callbacks significantly slow down training
-  callbacks = custom_callbacks.get_callbacks(
-      model_checkpoint=params.train.callbacks.enable_checkpoint_and_export,
-      include_tensorboard=params.train.callbacks.enable_tensorboard,
-      time_history=params.train.callbacks.enable_time_history,
-      track_lr=params.train.tensorboard.track_lr,
-      write_model_weights=params.train.tensorboard.write_model_weights,
-      initial_step=initial_epoch * train_steps,
-      batch_size=train_builder.global_batch_size,
-      log_steps=params.train.time_history.log_steps,
-      model_dir=params.model_dir)
+  if params.mode == 'train_and_eval':
+    serialize_config(params=params, model_dir=params.model_dir)
+    # TODO(dankondratyuk): callbacks significantly slow down training
+    callbacks = custom_callbacks.get_callbacks(
+        model_checkpoint=params.train.callbacks.enable_checkpoint_and_export,
+        include_tensorboard=params.train.callbacks.enable_tensorboard,
+        time_history=params.train.callbacks.enable_time_history,
+        track_lr=params.train.tensorboard.track_lr,
+        write_model_weights=params.train.tensorboard.write_model_weights,
+        initial_step=initial_epoch * train_steps,
+        batch_size=train_builder.global_batch_size,
+        log_steps=params.train.time_history.log_steps,
+        model_dir=params.model_dir)
+  elif params.mode == 'eval':
+    callbacks = None
 
   if params.evaluation.skip_eval:
     validation_kwargs = {}
@@ -382,18 +391,29 @@ def train_and_eval(
         'validation_freq': params.evaluation.epochs_between_evals,
     }
 
-  history = model.fit(
-      train_dataset,
-      epochs=train_epochs,
-      steps_per_epoch=train_steps,
-      initial_epoch=initial_epoch,
-      callbacks=callbacks,
-      **validation_kwargs)
+  if params.mode == 'train_and_eval':
+    history = model.fit(
+        train_dataset,
+        epochs=train_epochs,
+        steps_per_epoch=train_steps,
+        initial_epoch=initial_epoch,
+        callbacks=callbacks,
+        **validation_kwargs)
+  elif params.mode == 'eval':
+    history = None
 
   validation_output = None
-  if not params.evaluation.skip_eval:
+  if not params.evaluation.skip_eval or params.mode == 'eval':
+    if params.evaluation.eval_data == 'train':
+      eval_dataset = train_dataset
+      eval_steps = train_steps
+    elif params.evaluation.eval_data == 'validation':
+      eval_dataset = validation_dataset
+      eval_steps = validation_steps
+
+    logging.info('Evaluate %s data', params.evaluation.eval_data)
     validation_output = model.evaluate(
-        validation_dataset, steps=validation_steps, verbose=2)
+        eval_dataset, steps=eval_steps, verbose=2, return_dict=True)
 
   # TODO(dankondratyuk): eval and save final test accuracy
   stats = common.build_stats(history,
@@ -429,7 +449,7 @@ def run(flags_obj: flags.FlagValues,
     Dictionary of training/eval stats
   """
   params = _get_params_from_flags(flags_obj)
-  if params.mode == 'train_and_eval':
+  if params.mode in ['train_and_eval', 'eval']:
     return train_and_eval(params, strategy_override)
   elif params.mode == 'export_only':
     export(params)
