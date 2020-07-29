@@ -139,12 +139,6 @@ def _deserialize_config(model, model_pruning_config):
   Returns:
     model_pruning_config: A new ModelPruningConfig instance.
   """
-
-  def get_weight_constraint(pruning_schedule, pruning_granularity):
-    return pruning_granularity.constraint_type(
-        pruning_schedule=pruning_schedule,
-        **pruning_granularity.get_config()['config'])
-
   model_pruning_config = _convert_config(model, model_pruning_config)
   for mask_sharing_config in model_pruning_config.share_mask:
     for layer_pruning_config in mask_sharing_config.pruning:
@@ -167,8 +161,8 @@ def _deserialize_config(model, model_pruning_config):
             custom_objects=custom_objects)
         weight_pruning_config.pruning_schedule = pruning_schedule
         weight_pruning_config.pruning_granularity = pruning_granularity
-        weight_pruning_config.constraint = get_weight_constraint(
-            pruning_schedule, pruning_granularity)
+        weight_pruning_config.constraint = pruning_granularity.get_constraint(
+            pruning_schedule)
 
   return model_pruning_config
 
