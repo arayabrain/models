@@ -189,6 +189,7 @@ def cprune_low_magnitude_from_config(model, model_pruning_config):
     model_pruning_config: A new ModelPruningConfig instance.
   """
   model_pruning_config = _deserialize_config(model, model_pruning_config)
+  weights = model.get_weights()
 
   def clone_function(layer):
     layer_config = layer.get_config()
@@ -202,5 +203,7 @@ def cprune_low_magnitude_from_config(model, model_pruning_config):
             layer_config[constraint_name] = constraint
     return layer.__class__.from_config(layer_config)
 
-  return tf.keras.models.clone_model(
+  model = tf.keras.models.clone_model(
       model, input_tensors=None, clone_function=clone_function)
+  model.set_weights(weights)
+  return model
