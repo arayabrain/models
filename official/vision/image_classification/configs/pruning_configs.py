@@ -71,7 +71,8 @@ class WeightPruningConfig(base_config.Config):
 class LayerPruningConfig(base_config.Config):
   """Configuration for pruning of a Keras layer.
   Attributes:
-    layer_name: The name of a layer to be pruned.
+    layer_name: The name of a layer (or possibly a regular expression pattern
+      thereof) to be pruned.
     pruning: How to prune that layer. Defaults to None (no pruning).  Otherwise
       a PruningConfig or a list of WeightPruningConfig's.
   """
@@ -85,6 +86,7 @@ class MaskSharingConfig(base_config.Config):
   This config is dedicated to channel pruning.
   Attributes:
     layer_names: The names of layers for which pruning masks are shared.
+      In contrast to LayerPruningConfig, regular expressions are not allowed.
       Defaults to an empty list (no mask sharing).
   """
   layer_names: List[str] = dataclasses.field(default_factory=list)
