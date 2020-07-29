@@ -12,6 +12,7 @@ from tensorflow_model_optimization.python.core.sparsity.keras import cprune_regi
 from official.vision.image_classification.configs import pruning_configs
 
 
+K = tf.keras.backend
 deserialize_keras_object = tf.keras.utils.deserialize_keras_object
 
 
@@ -168,7 +169,32 @@ def _deserialize_config(model, model_pruning_config):
 
 
 def report_target_sparsity(model, model_pruning_config):
-  pass
+  """Report target sparsity out of a model and a ModelPruningConfig.
+
+  Arguments:
+    model: A tf.keras model.
+    model_pruning_config: A ModelPruningConfig instance.
+
+  Returns:
+    model_pruning_config: A new ModelPruningConfig instance.
+  """
+  model_pruning_config = _expand_model_pruning_config(model, model_pruning_config)
+  for mask_sharing_config in model_pruning_config.share_mask:
+    for layer_pruning_config in mask_sharing_config.pruning:
+      for weight_pruning_config in layer_pruning_config.pruning:
+        custom_objects = {
+          'ConstantSparsity': pruning_sched.ConstantSparsity,
+          'PolynomialDecay': pruning_sched.PolynomialDecay,
+        }
+        pruning_schedule = deserialize_keras_object(
+            weight_pruning_config.pruning_schedule.as_dict(),
+            module_objects=globals(),
+            custom_objects=custom_objects)
+        should_prune, target_sparsity = pruning_schedule(
+            pruning_schedule.get_final_pruning_step)
+        assert bool(should_prune.numpy())
+        weight_pruning_config.target_sparsity = float(target_sparsity.numpy())
+  return model_pruning_config
 
 
 def cprune_low_magnitude_from_config(model, model_pruning_config):
