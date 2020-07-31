@@ -18,6 +18,7 @@ from __future__ import division
 from __future__ import print_function
 
 import os
+import pprint
 
 from absl import app
 from absl import flags
@@ -25,10 +26,15 @@ from absl import logging
 import tensorflow as tf
 import tensorflow_datasets as tfds
 
+from official.modeling.hyperparams import params_dict
 from official.utils.flags import core as flags_core
 from official.utils.misc import distribution_utils
 from official.utils.misc import model_helpers
 from official.vision.image_classification.resnet import common
+from official.vision.image_classification.configs import pruning_configs
+
+cprune_from_config = pruning_configs.cprune_from_config
+MNISTPruningConfig = pruning_configs.mnist_pruning_config.MNISTPruningConfig
 
 FLAGS = flags.FLAGS
 
@@ -41,6 +47,7 @@ def build_model():
   y = tf.keras.layers.Conv2D(filters=32,
                              kernel_size=5,
                              padding='same',
+                             use_bias=False,
                              activation='relu')(image)
   y = tf.keras.layers.MaxPooling2D(pool_size=(2, 2),
                                    strides=(2, 2),
@@ -48,12 +55,13 @@ def build_model():
   y = tf.keras.layers.Conv2D(filters=32,
                              kernel_size=5,
                              padding='same',
+                             use_bias=False,
                              activation='relu')(y)
   y = tf.keras.layers.MaxPooling2D(pool_size=(2, 2),
                                    strides=(2, 2),
                                    padding='same')(y)
   y = tf.keras.layers.Flatten()(y)
-  y = tf.keras.layers.Dense(1024, activation='relu')(y)
+  y = tf.keras.layers.Dense(1024, activation='relu', use_bias=False)(y)
   y = tf.keras.layers.Dropout(0.4)(y)
 
   probs = tf.keras.layers.Dense(10, activation='softmax')(y)
@@ -106,6 +114,19 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
     optimizer = tf.keras.optimizers.SGD(learning_rate=lr_schedule)
 
     model = build_model()
+    if flags_obj.pruning_config_file:
+      params = MNISTPruningConfig()
+      pp = pprint.PrettyPrinter()
+
+      params_dict.override_params_dict(
+          params, flags_obj.pruning_config_file, is_strict=False)
+      logging.info('Specified pruning params: %s', pp.pformat(params.as_dict()))
+
+      _params = cprune_from_config.predict_sparsity(model, params)
+      logging.info('Understood pruning params: %s', pp.pformat(_params.as_dict()))
+
+      model = cprune_from_config.cprune_from_config(model, params)
+
     model.compile(
         optimizer=optimizer,
         loss='sparse_categorical_crossentropy',
@@ -157,6 +178,8 @@ def define_mnist_flags():
   flags.DEFINE_bool('download', False,
                     'Whether to download data to `--data_dir`.')
   FLAGS.set_default('batch_size', 1024)
+  FLAGS.DEFINE_string('pruning_config_file', None,
+                      'Path to a yaml file of model pruning configuration.')
 
 
 def main(_):

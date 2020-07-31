@@ -97,14 +97,11 @@ class ModelPruningConfig(base_config.Config):
   """Configuration for pruning a Keras model.
   Attributes:
     model_name: The name of a model to be pruned.
-    prune_func: The pruning function to be used. Defaults to
-      'cprune_low_magnitude'.
     pruning: How to prune that model. Defaults to None (no pruning). Otherwise
       a PruningConfig or a list of LayerPruningConfig's.
     share_mask: Specifies how pruning masks are shared across layers. Defaults
       to None (no mask sharing). Otherwise a list of MaskSharingConfig's.
   """
   model_name: Optional[str] = None
-  prune_func: str = 'cprune_low_magnitude'
   pruning: Optional[Union[PruningConfig, List[LayerPruningConfig]]] = None
   share_mask: Optional[List[MaskSharingConfig]] = None

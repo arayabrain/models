@@ -12,6 +12,13 @@ from tensorflow_model_optimization.python.core.sparsity.keras import cprune_regi
 from official.vision.image_classification.configs import pruning_configs
 
 
+ModelPruningConfig = pruning_configs.pruning_base_configs.ModelPruningConfig
+MaskSharingConfig = pruning_configs.pruning_base_configs.MaskSharingConfig
+LayerPruningConfig = pruning_configs.pruning_base_configs.LayerPruningConfig
+WeightPruningConfig = pruning_configs.pruning_base_configs.WeightPruningConfig
+PruningConfig = pruning_configs.pruning_base_configs.PruningConfig
+
+
 K = tf.keras.backend
 deserialize_keras_object = tf.keras.utils.deserialize_keras_object
 
@@ -30,12 +37,12 @@ def _expand_layer_pruning_config(layer, layer_pruning_config):
 
   if layer_pruning_config.pruning is None:
     layer_pruning_config.pruning = []
-  elif isinstance(layer_pruning_config.pruning, pruning_configs.PruningConfig):
+  elif isinstance(layer_pruning_config.pruning, PruningConfig):
     pruning_config = layer_pruning_config.pruning
     layer_pruning_config.pruning = []
     weight_constraint_names = cprune_registry.CPruneRegistry.get_pruning_weight_constraint_names(layer)
     for (weight_name, _) in weight_constraint_names:
-      weight_pruning_config = pruning_configs.WeightPruningConfig(
+      weight_pruning_config = WeightPruningConfig(
           weight_name=weight_name, pruning=pruning_config)
       layer_pruning_config.pruning.append(weight_pruning_config)
 
@@ -56,12 +63,12 @@ def _expand_model_pruning_config(model, model_pruning_config):
 
   if model_pruning_config.pruning is None:
     model_pruning_config.pruning = []
-  elif isinstance(model_pruning_config.pruning, pruning_configs.PruningConfig):
+  elif isinstance(model_pruning_config.pruning, PruningConfig):
     pruning_config = model_pruning_config.pruning
     model_pruning_config.pruning = []
     for layer in model.layers:
-      if layer not in model._input_layers:
-        layer_pruning_config = pruning_configs.LayerPruningConfig(
+      if layer.trainable_weights:
+        layer_pruning_config = LayerPruningConfig(
             layer_name=layer.name, pruning=pruning_config)
         model_pruning_config.pruning.append(
             _expand_layer_pruning_config(layer, layer_pruning_config))
@@ -120,7 +127,7 @@ def _convert_config(model, model_pruning_config):
                  for layer_pruning_config in layer_pruning_configs)
       mask_sharing_config.pruning = layer_pruning_configs[0].pruning
   for i, layer_pruning_config in enumerate(model_pruning_config.pruning):
-    mask_sharing_config = pruning_configs.MaskSharingConfig(
+    mask_sharing_config = MaskSharingConfig(
         layer_names=[layer_pruning_config.layer_name])
     mask_sharing_config.pruning = layer_pruning_config.pruning
     model_pruning_config.pruning.pop(i)
@@ -168,8 +175,8 @@ def _deserialize_config(model, model_pruning_config):
   return model_pruning_config
 
 
-def report_target_sparsity(model, model_pruning_config):
-  """Report target sparsity out of a model and a ModelPruningConfig.
+def predict_sparsity(model, model_pruning_config):
+  """Predict sparsity after pruning out of a model and a ModelPruningConfig.
 
   Arguments:
     model: A tf.keras model.
@@ -193,11 +200,11 @@ def report_target_sparsity(model, model_pruning_config):
         should_prune, target_sparsity = pruning_schedule(
             pruning_schedule.get_final_pruning_step)
         assert bool(should_prune.numpy())
-        weight_pruning_config.target_sparsity = float(target_sparsity.numpy())
+        weight_pruning_config.predicted_sparsity = float(target_sparsity.numpy())
   return model_pruning_config
 
 
-def cprune_low_magnitude_from_config(model, model_pruning_config):
+def cprune_from_config(model, model_pruning_config):
   """Modify a tf.keras model to be pruned during training.
 
   Arguments:
