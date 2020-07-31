@@ -144,7 +144,7 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
   if flags_obj.pruning_config_file:
     callbacks += [
       cpruning_callbacks.UpdateCPruningStep(),
-      cpruning_callbacks.CPruningSummaries(log_dir=flags_obj.model_dir),
+      #cpruning_callbacks.CPruningSummaries(log_dir=flags_obj.model_dir),
     ]
 
   num_eval_examples = mnist.info.splits['test'].num_examples
