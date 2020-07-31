@@ -109,7 +109,6 @@ def _convert_config(model, model_pruning_config):
   """
   model_pruning_config = _expand_model_pruning_config(model, model_pruning_config)
   assert model_pruning_config.model_name == model.name
-  assert model_pruning_config.prune_func == 'cprune_low_magnitude'
 
   if model_pruning_config.share_mask is None:
     model_pruning_config.share_mask = []
