@@ -124,14 +124,13 @@ def _convert_config(model, model_pruning_config):
     assert all(layer_pruning_config.pruning == layer_pruning_configs[0].pruning
                for layer_pruning_config in layer_pruning_configs)
     mask_sharing_config.pruning = layer_pruning_configs[0].pruning
-  for i, layer_pruning_config in enumerate(model_pruning_config.pruning):
+  for layer_pruning_config in model_pruning_config.pruning:
     mask_sharing_config = MaskSharingConfig(
         layer_names=[layer_pruning_config.layer_name])
     mask_sharing_config.pruning = layer_pruning_config.pruning
-    model_pruning_config.pruning.pop(i)
     model_pruning_config.share_mask.append(mask_sharing_config)
+  model_pruning_config.pruning = None
 
-  assert len(model_pruning_config.pruning) == 0
   return model_pruning_config
 
 
