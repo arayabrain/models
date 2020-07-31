@@ -109,6 +109,8 @@ def _convert_config(model, model_pruning_config):
     model_pruning_dict: A dict.
   """
   model_pruning_config = _expand_model_pruning_config(model, model_pruning_config)
+  if model_pruning_config.share_mask is None:
+    model_pruning_config.share_mask = []
   model_pruning_dict = dict()
 
   model_pruning_dict['share_mask'] = []
