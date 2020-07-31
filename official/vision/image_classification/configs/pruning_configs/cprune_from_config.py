@@ -168,9 +168,9 @@ def _deserialize_config(model, model_pruning_config):
     return weight_pruning_dict
 
   model_pruning_dict = _convert_config(model, model_pruning_config)
-  for i, mask_sharing_dict in enumerate(model_pruning_config['share_mask']):
+  for i, mask_sharing_dict in enumerate(model_pruning_dict['share_mask']):
     for j, weight_pruning_dict in enumerate(mask_sharing_dict['pruning']):
-      model_pruning_config['share_mask'][i]['pruning'][j] = _init_constraint(weight_pruning_dict)
+      model_pruning_dict['share_mask'][i]['pruning'][j] = _init_constraint(weight_pruning_dict)
 
   return model_pruning_dict
 
