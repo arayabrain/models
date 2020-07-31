@@ -146,7 +146,7 @@ def _deserialize_config(model, model_pruning_config):
   """
   model_pruning_config = _convert_config(model, model_pruning_config)
   for mask_sharing_config in model_pruning_config.share_mask:
-    for weight_pruning_config in mask_sharing_config.pruning:
+    for weight_pruning_config in mask_sharing_config._pruning:
       custom_objects = {
         'ConstantSparsity': pruning_sched.ConstantSparsity,
         'PolynomialDecay': pruning_sched.PolynomialDecay,
