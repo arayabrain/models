@@ -186,21 +186,20 @@ def predict_sparsity(model, model_pruning_config):
     model_pruning_config: A new ModelPruningConfig instance.
   """
   model_pruning_config = _expand_model_pruning_config(model, model_pruning_config)
-  for mask_sharing_config in model_pruning_config.share_mask:
-    for layer_pruning_config in mask_sharing_config.pruning:
-      for weight_pruning_config in layer_pruning_config.pruning:
-        custom_objects = {
-          'ConstantSparsity': pruning_sched.ConstantSparsity,
-          'PolynomialDecay': pruning_sched.PolynomialDecay,
-        }
-        pruning_schedule = deserialize_keras_object(
-            weight_pruning_config.pruning_schedule.as_dict(),
-            module_objects=globals(),
-            custom_objects=custom_objects)
-        should_prune, target_sparsity = pruning_schedule(
-            pruning_schedule.get_final_pruning_step)
-        assert bool(should_prune.numpy())
-        weight_pruning_config.predicted_sparsity = float(target_sparsity.numpy())
+  for layer_pruning_config in model_pruning_config.pruning:
+    for weight_pruning_config in layer_pruning_config.pruning:
+      custom_objects = {
+        'ConstantSparsity': pruning_sched.ConstantSparsity,
+        'PolynomialDecay': pruning_sched.PolynomialDecay,
+      }
+      pruning_schedule = deserialize_keras_object(
+          weight_pruning_config.pruning_schedule.as_dict(),
+          module_objects=globals(),
+          custom_objects=custom_objects)
+      should_prune, target_sparsity = pruning_schedule(
+          pruning_schedule.get_final_pruning_step)
+      assert bool(should_prune.numpy())
+      weight_pruning_config.predicted_sparsity = float(target_sparsity.numpy())
   return model_pruning_config
 
 
