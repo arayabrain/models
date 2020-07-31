@@ -160,16 +160,16 @@ def _deserialize_config(model, model_pruning_config):
           'QuasiCyclic': pruning_granu.QuasiCyclic,
         }
         pruning_schedule = deserialize_keras_object(
-            weight_pruning_config.pruning_schedule.as_dict(),
+            weight_pruning_config.pruning.pruning_schedule.as_dict(),
             module_objects=globals(),
             custom_objects=custom_objects)
         pruning_granularity = deserialize_keras_object(
-            weight_pruning_config.pruning_granularity.as_dict(),
+            weight_pruning_config.pruning.pruning_granularity.as_dict(),
             module_objects=globals(),
             custom_objects=custom_objects)
-        weight_pruning_config.pruning_schedule = pruning_schedule
-        weight_pruning_config.pruning_granularity = pruning_granularity
-        weight_pruning_config.constraint = pruning_granularity.get_constraint(
+        weight_pruning_config.pruning.pruning_schedule = pruning_schedule
+        weight_pruning_config.pruning.pruning_granularity = pruning_granularity
+        weight_pruning_config.pruning.constraint = pruning_granularity.get_constraint(
             pruning_schedule)
 
   return model_pruning_config
@@ -193,13 +193,13 @@ def predict_sparsity(model, model_pruning_config):
         'PolynomialDecay': pruning_sched.PolynomialDecay,
       }
       pruning_schedule = deserialize_keras_object(
-          weight_pruning_config.pruning_schedule.as_dict(),
+          weight_pruning_config.pruning.pruning_schedule.as_dict(),
           module_objects=globals(),
           custom_objects=custom_objects)
       should_prune, target_sparsity = pruning_schedule(
           pruning_schedule.get_final_pruning_step)
       assert bool(should_prune.numpy())
-      weight_pruning_config.predicted_sparsity = float(target_sparsity.numpy())
+      weight_pruning_config.pruning.predicted_sparsity = float(target_sparsity.numpy())
   return model_pruning_config
 
 
@@ -225,7 +225,7 @@ def cprune_from_config(model, model_pruning_config):
           for weight_pruning_config in layer_pruning_config.pruning:
             weight_name = weight_pruning_config.weight_name
             constraint_name = cprune_registry.ConstraintRegistry._WEIGHTS_CONSTRAINS_MAP[weight_name]
-            constraint = weight_pruning_config.constraint
+            constraint = weight_pruning_config.pruning.constraint
             layer_config[constraint_name] = constraint
     return layer.__class__.from_config(layer_config)
 
