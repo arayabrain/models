@@ -163,9 +163,10 @@ def build_stats(history, eval_output, callbacks):
   """
   stats = {}
   if eval_output:
-    stats['accuracy'] = float(eval_output['accuracy'])
-    stats['top_5_accuracy'] = float(eval_output['top_5_accuracy'])
-    stats['loss'] = float(eval_output['loss'])
+    stats['accuracy'] = float(eval_output[1])
+    stats['eval_loss'] = float(eval_output[0])
+    if len(eval_output) == 3:
+      stats['top_5_accuracy'] = float(eval_output[2])
   if history and history.history:
     train_hist = history.history
     # Gets final loss from training.
