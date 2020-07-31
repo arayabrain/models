@@ -9,14 +9,14 @@ from tensorflow_model_optimization.python.core.sparsity.keras import pruning_sch
 from tensorflow_model_optimization.python.core.sparsity.keras import cpruning_granularity as pruning_granu
 from tensorflow_model_optimization.python.core.sparsity.keras import cprune_registry
 
-from official.vision.image_classification.configs import pruning_configs
+from official.vision.image_classification.configs.pruning_configs import  pruning_base_configs
 
 
-ModelPruningConfig = pruning_configs.pruning_base_configs.ModelPruningConfig
-MaskSharingConfig = pruning_configs.pruning_base_configs.MaskSharingConfig
-LayerPruningConfig = pruning_configs.pruning_base_configs.LayerPruningConfig
-WeightPruningConfig = pruning_configs.pruning_base_configs.WeightPruningConfig
-PruningConfig = pruning_configs.pruning_base_configs.PruningConfig
+ModelPruningConfig = pruning_base_configs.ModelPruningConfig
+MaskSharingConfig = pruning_base_configs.MaskSharingConfig
+LayerPruningConfig = pruning_base_configs.LayerPruningConfig
+WeightPruningConfig = pruning_base_configs.WeightPruningConfig
+PruningConfig = pruning_base_configs.PruningConfig
 
 
 K = tf.keras.backend
