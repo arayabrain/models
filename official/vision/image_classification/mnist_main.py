@@ -177,7 +177,7 @@ def define_mnist_flags():
   flags.DEFINE_bool('download', False,
                     'Whether to download data to `--data_dir`.')
   FLAGS.set_default('batch_size', 1024)
-  FLAGS.DEFINE_string('pruning_config_file', None,
+  flags.DEFINE_string('pruning_config_file', None,
                       'Path to a yaml file of model pruning configuration.')
 
 
