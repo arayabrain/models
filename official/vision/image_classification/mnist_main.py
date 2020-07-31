@@ -33,7 +33,7 @@ from official.utils.misc import model_helpers
 from official.vision.image_classification.resnet import common
 from official.vision.image_classification.configs.pruning_configs import cprune_from_config
 from official.vision.image_classification.configs.pruning_configs import mnist_pruning_config
-
+from tensorflow_model_optimization.python.core.sparsity.keras import cpruning_callbacks
 
 FLAGS = flags.FLAGS
 
@@ -141,6 +141,11 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
           ckpt_full_path, save_weights_only=True),
       tf.keras.callbacks.TensorBoard(log_dir=flags_obj.model_dir),
   ]
+  if flags_obj.pruning_config_file:
+    callbacks += [
+      cpruning_callbacks.UpdateCPruningStep(),
+      cpruning_callbacks.CPruningSummaries(),
+    ]
 
   num_eval_examples = mnist.info.splits['test'].num_examples
   num_eval_steps = num_eval_examples // flags_obj.batch_size
