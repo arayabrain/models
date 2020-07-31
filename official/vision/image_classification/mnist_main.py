@@ -31,10 +31,9 @@ from official.utils.flags import core as flags_core
 from official.utils.misc import distribution_utils
 from official.utils.misc import model_helpers
 from official.vision.image_classification.resnet import common
-from official.vision.image_classification.configs import pruning_configs
+from official.vision.image_classification.configs.pruning_configs import cprune_from_config
+from official.vision.image_classification.configs.pruning_configs import mnist_pruning_config
 
-cprune_from_config = pruning_configs.cprune_from_config
-MNISTPruningConfig = pruning_configs.mnist_pruning_config.MNISTPruningConfig
 
 FLAGS = flags.FLAGS
 
@@ -115,7 +114,7 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
 
     model = build_model()
     if flags_obj.pruning_config_file:
-      params = MNISTPruningConfig()
+      params = mnist_pruning_config.MNISTPruningConfig()
       pp = pprint.PrettyPrinter()
 
       params_dict.override_params_dict(
