@@ -130,7 +130,7 @@ def _convert_config(model, model_pruning_config):
   for layer_pruning_config in model_pruning_config.pruning:
     mask_sharing_dict = MaskSharingConfig(
         layer_names=[layer_pruning_config.layer_name]).as_dict()
-    mask_sharing_dict['pruning'] = layer_pruning_config.pruning.as_dict()
+    mask_sharing_dict['pruning'] = layer_pruning_config.as_dict()['pruning']
     model_pruning_dict['share_mask'].append(mask_sharing_dict)
 
   return model_pruning_dict
