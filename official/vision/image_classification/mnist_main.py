@@ -122,7 +122,7 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
       logging.info('Specified pruning params: %s', pp.pformat(params.as_dict()))
 
       _params = cprune_from_config.predict_sparsity(model, params)
-      logging.info('Understood pruning params: %s', pp.pformat(_params.as_dict()))
+      logging.info('Understood pruning params: %s', pp.pformat(_params))
 
       model = cprune_from_config.cprune_from_config(model, params)
 
