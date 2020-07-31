@@ -109,9 +109,9 @@ def _convert_config(model, model_pruning_config):
     model_pruning_dict: A dict.
   """
   model_pruning_config = _expand_model_pruning_config(model, model_pruning_config)
-  model_pruning_dict = model_pruning_config.as_dict()
+  model_pruning_dict = dict()
 
-  model_pruning_config['share_mask'] = []
+  model_pruning_dict['share_mask'] = []
   for mask_sharing_config in model_pruning_config.share_mask:
     # TODO: debug this for block.
     layer_names = mask_sharing_config.layer_names
