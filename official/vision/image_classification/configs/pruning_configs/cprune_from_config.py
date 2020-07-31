@@ -164,7 +164,7 @@ def _deserialize_config(model, model_pruning_config):
       weight_pruning_dict['pruning']['pruning_granularity'],
       module_objects=globals(),
       custom_objects=custom_objects)
-    weight_pruning_dict['constraint'] = granularity.get_constraint(schedule)
+    weight_pruning_dict['pruning']['constraint'] = granularity.get_constraint(schedule)
     return weight_pruning_dict
 
   model_pruning_dict = _convert_config(model, model_pruning_config)
