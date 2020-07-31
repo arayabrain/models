@@ -219,12 +219,11 @@ def cprune_from_config(model, model_pruning_config):
     layer_config = layer.get_config()
     for mask_sharing_dict in model_pruning_dict['share_mask']:
       if layer.name in mask_sharing_dict['layer_names']:
-        for layer_pruning_config in mask_sharing_dict['pruning']:
-          for weight_pruning_dict in layer_pruning_config['pruning']:
-            weight_name = weight_pruning_dict['weight_name']
-            constraint_name = cprune_registry.ConstraintRegistry._WEIGHTS_CONSTRAINS_MAP[weight_name]
-            constraint = weight_pruning_dict['pruning']['constraint']
-            layer_config[constraint_name] = constraint
+        for weight_pruning_dict in mask_sharing_dict['pruning']:
+          weight_name = weight_pruning_dict['weight_name']
+          constraint_name = cprune_registry.ConstraintRegistry._WEIGHTS_CONSTRAINS_MAP[weight_name]
+          constraint = weight_pruning_dict['pruning']['constraint']
+          layer_config[constraint_name] = constraint
     return layer.__class__.from_config(layer_config)
 
   model = tf.keras.models.clone_model(
