@@ -165,11 +165,12 @@ def _deserialize_config(model, model_pruning_config):
       module_objects=globals(),
       custom_objects=custom_objects)
     weight_pruning_dict['constraint'] = granularity.get_constraint(schedule)
+    return weight_pruning_dict
 
   model_pruning_dict = _convert_config(model, model_pruning_config)
-  for mask_sharing_dict in model_pruning_dict['share_mask']:
-    for weight_pruning_dict in mask_sharing_dict['pruning']:
-      _init_constraint(weight_pruning_dict)
+  for i, mask_sharing_dict in enumerate(model_pruning_config['share_mask']):
+    for j, weight_pruning_dict in enumerate(mask_sharing_dict['pruning']):
+      model_pruning_config['share_mask'][i]['pruning'][j] = _init_constraint(weight_pruning_dict)
 
   return model_pruning_dict
 
