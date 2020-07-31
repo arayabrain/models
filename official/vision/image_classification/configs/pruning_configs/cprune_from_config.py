@@ -112,19 +112,18 @@ def _convert_config(model, model_pruning_config):
 
   if model_pruning_config.share_mask is None:
     model_pruning_config.share_mask = []
-  if model_pruning_config.share_mask:
-    for mask_sharing_config in model_pruning_config.share_mask:
-      layer_names = mask_sharing_config.layer_names
-      layer_pruning_configs = []
-      for layer_name in layer_names:
-        for i, layer_pruning_config in enumerate(model_pruning_config.pruning):
-          if layer_pruning_config.layer_name == layer_name:
-            layer_pruning_configs.append(layer_pruning_config)
-            model_pruning_config.pruning.pop(i)
-      assert len(layer_names) == len(layer_pruning_configs)
-      assert all(layer_pruning_config.pruning == layer_pruning_configs[0].pruning
-                 for layer_pruning_config in layer_pruning_configs)
-      mask_sharing_config.pruning = layer_pruning_configs[0].pruning
+  for mask_sharing_config in model_pruning_config.share_mask:
+    layer_names = mask_sharing_config.layer_names
+    layer_pruning_configs = []
+    for layer_name in layer_names:
+      for i, layer_pruning_config in enumerate(model_pruning_config.pruning):
+        if layer_pruning_config.layer_name == layer_name:
+          layer_pruning_configs.append(layer_pruning_config)
+          model_pruning_config.pruning.pop(i)
+    assert len(layer_names) == len(layer_pruning_configs)
+    assert all(layer_pruning_config.pruning == layer_pruning_configs[0].pruning
+               for layer_pruning_config in layer_pruning_configs)
+    mask_sharing_config.pruning = layer_pruning_configs[0].pruning
   for i, layer_pruning_config in enumerate(model_pruning_config.pruning):
     mask_sharing_config = MaskSharingConfig(
         layer_names=[layer_pruning_config.layer_name])
@@ -148,28 +147,27 @@ def _deserialize_config(model, model_pruning_config):
   """
   model_pruning_config = _convert_config(model, model_pruning_config)
   for mask_sharing_config in model_pruning_config.share_mask:
-    for layer_pruning_config in mask_sharing_config.pruning:
-      for weight_pruning_config in layer_pruning_config.pruning:
-        custom_objects = {
-          'ConstantSparsity': pruning_sched.ConstantSparsity,
-          'PolynomialDecay': pruning_sched.PolynomialDecay,
-          'BlockSparsity': pruning_granu.BlockSparsity,
-          'ChannelPruning': pruning_granu.ChannelPruning,
-          'KernelLevel': pruning_granu.KernelLevel,
-          'QuasiCyclic': pruning_granu.QuasiCyclic,
-        }
-        pruning_schedule = deserialize_keras_object(
-            weight_pruning_config.pruning.pruning_schedule.as_dict(),
-            module_objects=globals(),
-            custom_objects=custom_objects)
-        pruning_granularity = deserialize_keras_object(
-            weight_pruning_config.pruning.pruning_granularity.as_dict(),
-            module_objects=globals(),
-            custom_objects=custom_objects)
-        weight_pruning_config.pruning.pruning_schedule = pruning_schedule
-        weight_pruning_config.pruning.pruning_granularity = pruning_granularity
-        weight_pruning_config.pruning.constraint = pruning_granularity.get_constraint(
-            pruning_schedule)
+    for weight_pruning_config in mask_sharing_config.pruning:
+      custom_objects = {
+        'ConstantSparsity': pruning_sched.ConstantSparsity,
+        'PolynomialDecay': pruning_sched.PolynomialDecay,
+        'BlockSparsity': pruning_granu.BlockSparsity,
+        'ChannelPruning': pruning_granu.ChannelPruning,
+        'KernelLevel': pruning_granu.KernelLevel,
+        'QuasiCyclic': pruning_granu.QuasiCyclic,
+      }
+      pruning_schedule = deserialize_keras_object(
+          weight_pruning_config.pruning.pruning_schedule.as_dict(),
+          module_objects=globals(),
+          custom_objects=custom_objects)
+      pruning_granularity = deserialize_keras_object(
+          weight_pruning_config.pruning.pruning_granularity.as_dict(),
+          module_objects=globals(),
+          custom_objects=custom_objects)
+      weight_pruning_config.pruning.pruning_schedule = pruning_schedule
+      weight_pruning_config.pruning.pruning_granularity = pruning_granularity
+      weight_pruning_config.pruning.constraint = pruning_granularity.get_constraint(
+          pruning_schedule)
 
   return model_pruning_config
 
