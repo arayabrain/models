@@ -197,7 +197,7 @@ def predict_sparsity(model, model_pruning_config):
           module_objects=globals(),
           custom_objects=custom_objects)
       should_prune, target_sparsity = pruning_schedule(
-          pruning_schedule.get_final_pruning_step)
+          pruning_schedule.get_final_update_step())
       assert bool(should_prune.numpy())
       weight_pruning_config.pruning.predicted_sparsity = float(target_sparsity.numpy())
   return model_pruning_config
