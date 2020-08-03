@@ -34,6 +34,7 @@ from official.vision.image_classification.resnet import common
 from official.vision.image_classification.pruning import cprune_from_config
 from official.vision.image_classification.pruning.mnist import mnist_pruning_config
 from tensorflow_model_optimization.python.core.sparsity.keras import cpruning_callbacks
+from tensorflow_model_optimization.python.core.sparsity.keras import cprune
 
 FLAGS = flags.FLAGS
 pp = pprint.PrettyPrinter()
@@ -150,14 +151,20 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
   num_eval_examples = mnist.info.splits['test'].num_examples
   num_eval_steps = num_eval_examples // flags_obj.batch_size
 
-  history = model.fit(
-      train_input_dataset,
-      epochs=train_epochs,
-      steps_per_epoch=train_steps,
-      callbacks=callbacks,
-      validation_steps=num_eval_steps,
-      validation_data=eval_input_dataset,
-      validation_freq=flags_obj.epochs_between_evals)
+  if flags.FLAGS.mode == 'train_and_eval':
+    history = model.fit(
+        train_input_dataset,
+        epochs=train_epochs,
+        steps_per_epoch=train_steps,
+        callbacks=callbacks,
+        validation_steps=num_eval_steps,
+        validation_data=eval_input_dataset,
+        validation_freq=flags_obj.epochs_between_evals)
+  elif flags.FLAGS.mode == 'eval':
+    callbacks = None
+    history = cprune.apply_cpruning_masks(model)
+  else:
+    raise ValueError('{} is not a valid mode.'.format(flags.FLAGS.mode))
 
   export_path = os.path.join(flags_obj.model_dir, 'saved_model')
   model.save(export_path, include_optimizer=False)
@@ -188,6 +195,11 @@ def define_mnist_flags():
   FLAGS.set_default('batch_size', 1024)
   flags.DEFINE_string('pruning_config_file', None,
                       'Path to a yaml file of model pruning configuration.')
+  flags.DEFINE_string(
+      'mode',
+      default=None,
+      help='Mode to run: `train_and_eval` or `eval`.')
+
 
 
 def main(_):
