@@ -189,6 +189,7 @@ def predict_sparsity(model, model_pruning_config):
   """
 
   def _get_sparsity(weights):
+    weights = K.get_value(weights)
     return 1.0 - np.count_nonzero(weights) / float(weights.size)
 
   model_sparsity_dict = _expand_model_pruning_config(model, model_pruning_config).as_dict()
