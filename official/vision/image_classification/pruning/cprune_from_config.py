@@ -3,6 +3,7 @@
 import copy
 import re
 
+import numpy as np
 import tensorflow as tf
 
 from tensorflow_model_optimization.python.core.sparsity.keras import pruning_schedule as pruning_sched
@@ -186,9 +187,18 @@ def predict_sparsity(model, model_pruning_config):
   Returns:
     model_sparsity_dict: A dict.
   """
+
+  def _get_sparsity(weights):
+    return 1.0 - np.count_nonzero(weights) / float(weights.size)
+
   model_sparsity_dict = _expand_model_pruning_config(model, model_pruning_config).as_dict()
   for layer_pruning_dict in model_sparsity_dict['pruning']:
+    layer_name = layer_pruning_dict['layer_name']
     for weight_pruning_dict in layer_pruning_dict['pruning']:
+      weight_name = weight_pruning_dict['weight_name']
+      weights = getattr(model.get_layer(layer_name), weight_name)
+      weight_pruning_dict['current_sparsity'] = _get_sparsity(weights)
+
       custom_objects = {
         'ConstantSparsity': pruning_sched.ConstantSparsity,
         'PolynomialDecay': pruning_sched.PolynomialDecay,

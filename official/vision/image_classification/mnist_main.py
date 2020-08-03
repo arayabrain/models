@@ -36,6 +36,7 @@ from official.vision.image_classification.pruning.mnist import mnist_pruning_con
 from tensorflow_model_optimization.python.core.sparsity.keras import cpruning_callbacks
 
 FLAGS = flags.FLAGS
+pp = pprint.PrettyPrinter()
 
 
 def build_model():
@@ -115,7 +116,6 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
     model = build_model()
     if flags_obj.pruning_config_file:
       params = mnist_pruning_config.MNISTPruningConfig()
-      pp = pprint.PrettyPrinter()
 
       params_dict.override_params_dict(
           params, flags_obj.pruning_config_file, is_strict=False)
@@ -161,6 +161,10 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
 
   export_path = os.path.join(flags_obj.model_dir, 'saved_model')
   model.save(export_path, include_optimizer=False)
+
+  if flags.FLAGS.pruning_config_file:
+    _params = cprune_from_config.predict_sparsity(model, params)
+    logging.info('Pruning result: %s', pp.pformat(_params))
 
   eval_output = model.evaluate(
       eval_input_dataset, steps=num_eval_steps, verbose=2)
