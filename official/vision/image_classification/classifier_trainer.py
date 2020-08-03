@@ -417,9 +417,9 @@ def train_and_eval(
 
   # TODO(dankondratyuk): eval and save final test accuracy
   stats = common.build_stats(history,
-                             [[validation_output['eval_loss'],
-                              [validation_output['accuracy_top_1'],
-                              [validation_output['accuracy_top_5']],
+                             [[validation_output['eval_loss']],
+                              [validation_output['accuracy_top_1']],
+                              [validation_output['accuracy_top_5']]],
                              callbacks)
   return stats
 
