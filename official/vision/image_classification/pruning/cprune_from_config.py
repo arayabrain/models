@@ -151,6 +151,7 @@ def _deserialize_config(model, model_pruning_config):
     custom_objects = {
       'ConstantSparsity': pruning_sched.ConstantSparsity,
       'PolynomialDecay': pruning_sched.PolynomialDecay,
+      'ArayaMag': pruning_granu.ArayaMag,
       'BlockSparsity': pruning_granu.BlockSparsity,
       'ChannelPruning': pruning_granu.ChannelPruning,
       'KernelLevel': pruning_granu.KernelLevel,
