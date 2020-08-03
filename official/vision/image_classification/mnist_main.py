@@ -151,7 +151,7 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
   num_eval_examples = mnist.info.splits['test'].num_examples
   num_eval_steps = num_eval_examples // flags_obj.batch_size
 
-  if flags.FLAGS.mode == 'train_and_eval':
+  if flags_obj.mode == 'train_and_eval':
     history = model.fit(
         train_input_dataset,
         epochs=train_epochs,
@@ -160,7 +160,7 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
         validation_steps=num_eval_steps,
         validation_data=eval_input_dataset,
         validation_freq=flags_obj.epochs_between_evals)
-  elif flags.FLAGS.mode == 'eval':
+  elif flags_obj.mode == 'eval':
     callbacks = None
     history = cprune.apply_cpruning_masks(model)
   else:
@@ -199,7 +199,6 @@ def define_mnist_flags():
       'mode',
       default=None,
       help='Mode to run: `train_and_eval` or `eval`.')
-
 
 
 def main(_):
