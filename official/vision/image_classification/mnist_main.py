@@ -31,8 +31,8 @@ from official.utils.flags import core as flags_core
 from official.utils.misc import distribution_utils
 from official.utils.misc import model_helpers
 from official.vision.image_classification.resnet import common
-from official.vision.image_classification.configs.pruning_configs import cprune_from_config
-from official.vision.image_classification.configs.pruning_configs import mnist_pruning_config
+from official.vision.image_classification.pruning import cprune_from_config
+from official.vision.image_classification.pruning.mnist import mnist_pruning_config
 from tensorflow_model_optimization.python.core.sparsity.keras import cpruning_callbacks
 
 FLAGS = flags.FLAGS
