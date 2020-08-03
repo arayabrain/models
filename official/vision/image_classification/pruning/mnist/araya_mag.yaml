@@ -1,0 +1,64 @@
+# A non-qc pruning configuration for the MNIST model.
+model_name: 'mnist'
+pruning:
+  - layer_name: 'conv2d'
+    pruning:
+      - weight_name: 'kernel'
+        pruning:
+          pruning_schedule:
+            class_name: 'ConstantSparsity'
+            config:
+              target_sparsity: 0.5
+              begin_step: 0
+              end_step: -1
+              frequency: 100
+          pruning_granularity:
+            class_name: 'ArayaMag'
+            config:
+              gamma: 2
+  - layer_name: 'conv2d_1'
+    pruning:
+      - weight_name: 'kernel'
+        pruning:
+          pruning_schedule:
+            class_name: 'ConstantSparsity'
+            config:
+              target_sparsity: 0.5
+              begin_step: 0
+              end_step: -1
+              frequency: 100
+          pruning_granularity:
+            class_name: 'ArayaMag'
+            config:
+              gamma: 2
+  - layer_name: 'dense'
+    pruning:
+      - weight_name: 'kernel'
+        pruning:
+          pruning_schedule:
+            class_name: 'ConstantSparsity'
+            config:
+              target_sparsity: 0.5
+              begin_step: 0
+              end_step: -1
+              frequency: 100
+          pruning_granularity:
+            class_name: 'ArayaMag'
+            config:
+              gamma: 2
+  - layer_name: 'dense_1'
+    pruning:
+      - weight_name: 'kernel'
+        pruning:
+          pruning_schedule:
+            class_name: 'ConstantSparsity'
+            config:
+              target_sparsity: 0.5
+              begin_step: 0
+              end_step: -1
+              frequency: 100
+          pruning_granularity:
+            class_name: 'ArayaMag'
+            config:
+              gamma: 2
+share_mask: null

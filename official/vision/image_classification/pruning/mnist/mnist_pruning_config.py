@@ -7,21 +7,15 @@ from typing import List, Optional
 
 import dataclasses
 
-from official.vision.image_classification.configs import pruning_configs
-
-
-ModelPruningConfig = pruning_configs.pruning_base_configs.ModelPruningConfig
-LayerPruningConfig = pruning_configs.pruning_base_configs.LayerPruningConfig
-WeightPruningConfig = pruning_configs.pruning_base_configs.WeightPruningConfig
-PruningConfig = pruning_configs.pruning_base_configs.PruningConfig
+from official.vision.image_classification.pruning import pruning_base_configs
 
 
 @dataclasses.dataclass
-class OnlyKernelPruningConfig(LayerPruningConfig):
+class OnlyKernelPruningConfig(pruning_base_configs.LayerPruningConfig):
   """Configuration for pruning a Dense or Conv2D layer."""
   layer_name: Optional[str] = None
-  pruning: List[WeightPruningConfig] = dataclasses.field(
-      default_factory=lambda: [WeightPruningConfig(
+  pruning: List[pruning_base_configs.WeightPruningConfig] = dataclasses.field(
+      default_factory=lambda: [pruning_base_configs.WeightPruningConfig(
           weight_name='kernel',
           pruning=None,
       )]
@@ -29,10 +23,10 @@ class OnlyKernelPruningConfig(LayerPruningConfig):
 
 
 @dataclasses.dataclass
-class MNISTPruningConfig(ModelPruningConfig):
+class MNISTPruningConfig(pruning_base_configs.ModelPruningConfig):
   """Configuration for pruning the model for MNIST."""
   model_name: str = 'mnist'
-  pruning: List[LayerPruningConfig] = dataclasses.field(
+  pruning: List[pruning_base_configs.LayerPruningConfig] = dataclasses.field(
       default_factory=lambda: [
           OnlyKernelPruningConfig(layer_name='conv2d'),
           OnlyKernelPruningConfig(layer_name='conv2d_1'),

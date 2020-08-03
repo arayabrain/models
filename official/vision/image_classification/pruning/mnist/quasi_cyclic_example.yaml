@@ -1,4 +1,4 @@
-# Pruning configuration for the MNIST model.
+# QC pruning configuration for the MNIST model.
 model_name: 'mnist'
 pruning:
   - layer_name: 'conv2d'
@@ -13,10 +13,9 @@ pruning:
               end_step: -1
               frequency: 100
           pruning_granularity:
-            class_name: 'BlockSparsity'
+            class_name: 'QuasiCyclic'
             config:
-              block_size: (1, 1)
-              block_pooling_type: 'AVG'
+              gamma: 2
   - layer_name: 'conv2d_1'
     pruning:
       - weight_name: 'kernel'
@@ -29,10 +28,9 @@ pruning:
               end_step: -1
               frequency: 100
           pruning_granularity:
-            class_name: 'BlockSparsity'
+            class_name: 'QuasiCyclic'
             config:
-              block_size: (1, 1)
-              block_pooling_type: 'AVG'
+              gamma: 2
   - layer_name: 'dense'
     pruning:
       - weight_name: 'kernel'
@@ -45,10 +43,9 @@ pruning:
               end_step: -1
               frequency: 100
           pruning_granularity:
-            class_name: 'BlockSparsity'
+            class_name: 'QuasiCyclic'
             config:
-              block_size: (1, 1)
-              block_pooling_type: 'AVG'
+              gamma: 2
   - layer_name: 'dense_1'
     pruning:
       - weight_name: 'kernel'
@@ -61,8 +58,7 @@ pruning:
               end_step: -1
               frequency: 100
           pruning_granularity:
-            class_name: 'BlockSparsity'
+            class_name: 'QuasiCyclic'
             config:
-              block_size: (1, 1)
-              block_pooling_type: 'AVG'
+              gamma: 2
 share_mask: null

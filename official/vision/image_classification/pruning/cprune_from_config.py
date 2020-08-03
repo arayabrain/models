@@ -9,7 +9,7 @@ from tensorflow_model_optimization.python.core.sparsity.keras import pruning_sch
 from tensorflow_model_optimization.python.core.sparsity.keras import cpruning_granularity as pruning_granu
 from tensorflow_model_optimization.python.core.sparsity.keras import cprune_registry
 
-from official.vision.image_classification.configs.pruning_configs import  pruning_base_configs
+from official.vision.image_classification.pruning import  pruning_base_configs
 
 
 ModelPruningConfig = pruning_base_configs.ModelPruningConfig
