@@ -91,9 +91,9 @@ def _expand_model_pruning_config(model, model_pruning_config):
           if re.search(_layer_name, layer_name):
             layer = model.get_layer(layer_name)
             layer_pruning_config = _expand_layer_pruning_config(layer, layer_pruning_config)
+            layer_pruning_config.layer_name = layer_name
             _config_dict[layer_name] = layer_pruning_config
     for layer_name, layer_pruning_config in _config_dict.items():
-      layer_pruning_config.name = layer_name
       model_pruning_config.pruning.append(layer_pruning_config)
 
   return model_pruning_config
