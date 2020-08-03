@@ -78,6 +78,39 @@ def decode_image(example, feature):
   return tf.cast(feature.decode_example(example), dtype=tf.float32) / 255
 
 
+def resume_from_checkpoint(model: tf.keras.Model,
+                           model_dir: str,
+                           train_steps: int) -> int:
+  """Resumes from the latest checkpoint, if possible.
+
+  Loads the model weights and optimizer settings from a checkpoint.
+  This function should be used in case of preemption recovery.
+
+  Args:
+    model: The model whose weights should be restored.
+    model_dir: The directory where model weights were saved.
+    train_steps: The number of steps to train.
+
+  Returns:
+    The epoch of the latest checkpoint, or 0 if not restoring.
+
+  """
+  logging.info('Load from checkpoint is enabled.')
+  latest_checkpoint = tf.train.latest_checkpoint(model_dir)
+  logging.info('latest_checkpoint: %s', latest_checkpoint)
+  if not latest_checkpoint:
+    logging.info('No checkpoint detected.')
+    return 0
+
+  logging.info('Checkpoint file %s found and restoring from '
+               'checkpoint', latest_checkpoint)
+  model.load_weights(latest_checkpoint)
+  initial_epoch = model.optimizer.iterations // train_steps
+  logging.info('Completed loading from checkpoint.')
+  logging.info('Resuming from epoch %d', initial_epoch)
+  return int(initial_epoch)
+
+
 def run(flags_obj, datasets_override=None, strategy_override=None):
   """Run MNIST model training and eval loop using native Keras APIs.
 
@@ -136,6 +169,12 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
   train_steps = num_train_examples // flags_obj.batch_size
   train_epochs = flags_obj.train_epochs
 
+  initial_epoch = 0
+  if flags_obj.resume_checkpoint:
+    initial_epoch = resume_from_checkpoint(model=model,
+                                           model_dir=flags_obj.model_dir,
+                                           train_steps=train_steps)
+
   ckpt_full_path = os.path.join(flags_obj.model_dir, 'model.ckpt-{epoch:04d}')
   callbacks = [
       tf.keras.callbacks.ModelCheckpoint(
@@ -156,6 +195,7 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
         train_input_dataset,
         epochs=train_epochs,
         steps_per_epoch=train_steps,
+        initial_epoch=initial_epoch,
         callbacks=callbacks,
         validation_steps=num_eval_steps,
         validation_data=eval_input_dataset,
@@ -199,6 +239,9 @@ def define_mnist_flags():
       'mode',
       default=None,
       help='Mode to run: `train_and_eval` or `eval`.')
+  flags.DEFINE_bool('resume_checkpoint', None,
+                    'Whether or not to enable load checkpoint loading. Defaults '
+                    'to None.')
 
 
 def main(_):
