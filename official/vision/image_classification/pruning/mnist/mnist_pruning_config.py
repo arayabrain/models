@@ -35,4 +35,3 @@ class MNISTPruningConfig(pruning_base_configs.ModelPruningConfig):
       ]
   )
   share_mask: None = None
-

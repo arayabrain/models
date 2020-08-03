@@ -148,6 +148,7 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
     optimizer = tf.keras.optimizers.SGD(learning_rate=lr_schedule)
 
     model = build_model()
+
     if flags_obj.pruning_config_file:
       params = mnist_pruning_config.MNISTPruningConfig()
 
