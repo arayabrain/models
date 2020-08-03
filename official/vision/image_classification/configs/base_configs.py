@@ -100,6 +100,7 @@ class EvalConfig(base_config.Config):
   Attributes:
     epochs_between_evals: The number of train epochs to run between evaluations.
       Defaults to None.
+    eval_data: The name of evaluation dataset. 'train' or 'validation' can be selected.
     steps: The number of eval steps to run during evaluation. If None, this will
       be inferred based on the number of images and batch size. Defaults to
       None.
