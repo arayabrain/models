@@ -31,34 +31,4 @@ pruning:
             class_name: 'KernelLevel'
             config:
               ker_axis: [0, 1]
-  - layer_name: 'dense'
-    pruning:
-      - weight_name: 'kernel'
-        pruning:
-          pruning_schedule:
-            class_name: 'ConstantSparsity'
-            config:
-              target_sparsity: 0.5
-              begin_step: 0
-              end_step: -1
-              frequency: 100
-          pruning_granularity:
-            class_name: 'KernelLevel'
-            config:
-              ker_axis: [0, 1]
-  - layer_name: 'dense_1'
-    pruning:
-      - weight_name: 'kernel'
-        pruning:
-          pruning_schedule:
-            class_name: 'ConstantSparsity'
-            config:
-              target_sparsity: 0.5
-              begin_step: 0
-              end_step: -1
-              frequency: 100
-          pruning_granularity:
-            class_name: 'KernelLevel'
-            config:
-              ker_axis: [0, 1]
 share_mask: null
