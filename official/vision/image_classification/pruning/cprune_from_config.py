@@ -5,7 +5,7 @@ import re
 
 import numpy as np
 import tensorflow as tf
-
+from tensorflow.python.ops import math_ops
 from tensorflow_model_optimization.python.core.sparsity.keras import pruning_schedule as pruning_sched
 from tensorflow_model_optimization.python.core.sparsity.keras import cpruning_granularity as pruning_granu
 from tensorflow_model_optimization.python.core.sparsity.keras import cprune_registry
@@ -197,9 +197,16 @@ def predict_sparsity(model, model_pruning_config):
     weights = K.get_value(weights)
     return 1.0 - np.count_nonzero(weights) / float(weights.size)
 
-  def _get_shared_sparsity(weights_list):
-   weights = tf.add_n([tf.abs(x) for x in weights_list])
-   return _get_sparsity(weights)
+  def _get_shared_sparsity(weights_list, ch_axis=-1):
+    weight_shape = weights_list[0].shape.as_list()
+    norm_axis = list(range(len(weight_shape)))
+    norm_axis.pop(ch_axis)
+
+    abs_weights_list = [tf.abs(weights) for weights in weights_list]
+    saliences_list = [math_ops.reduce_sum(abs_weights, axis=norm_axis, keepdims=True)
+                      for abs_weights in abs_weights_list]
+    weights = tf.add_n(saliences_list)
+    return _get_sparsity(weights)
 
   model_sparsity_dict = _expand_model_pruning_config(model, model_pruning_config).as_dict()
 
@@ -231,16 +238,15 @@ def predict_sparsity(model, model_pruning_config):
         if _layer_pruning_dict['layer_name'] == layer_names[0]:
           layer_pruning_dict = _layer_pruning_dict
           break
-      weight_names = [weight_pruning_dict['weight_name']
-                      for weight_pruning_dict in layer_pruning_dict['pruning']]
       sharing_layers = [model.get_layer(layer_name) for layer_name in layer_names]
-      for weight_name in weight_names:
-        weights_list = []
-        for layer in sharing_layers:
-          weights_list.append(getattr(layer, weight_name))
+      for weight_pruning_dict in layer_pruning_dict['pruning']:
+        weight_name = weight_pruning_dict['weight_name']
+        assert weight_pruning_dict['pruning']['class_name'] == 'ChannelPruning'
+        ch_axis = weight_pruning_dict['pruning']['config']['ch_axis']
+        weights_list = [getattr(layer, weight_name) for layer in sharing_layers]
         mask_sharing_dict['pruning'].append(dict(
             weight_name=weight_name,
-            current_shared_sparsity=_get_shared_sparsity(weights_list)
+            current_shared_sparsity=_get_shared_sparsity(weights_list, ch_axis=ch_axis)
         ))
 
   return model_sparsity_dict
