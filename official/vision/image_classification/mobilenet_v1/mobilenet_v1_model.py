@@ -98,6 +98,10 @@ MobilenetV1/Conv2d_13_pointwise/Conv2D:                  589,824       9,437,184
 --------------------------------------------------------------------------------
 Total:                                                 1,800,144     106,002,432
 
+See here for the original code.
+https://github.com/tensorflow/models/blob/master/research/slim/nets/mobilenet_v1.py
+
+It was changed to tf.keras ver by iio.
 """
 
 # Tensorflow mandates these.
@@ -471,7 +475,9 @@ def _reduced_kernel_size_for_small_input(input_tensor, kernel_size):
                        min(shape[2], kernel_size[1])]
   return kernel_size_out
 
-
+# ##
+# hyperparameter of original tf.slim code
+# ##
 # def mobilenet_v1_arg_scope(
   #   is_training=True,
   #   weight_decay=0.00004,
