@@ -242,7 +242,7 @@ def predict_sparsity(model, model_pruning_config):
       for weight_pruning_dict in layer_pruning_dict['pruning']:
         weight_name = weight_pruning_dict['weight_name']
         assert weight_pruning_dict['pruning']['pruning_granularity']['class_name'] == 'ChannelPruning'
-        ch_axis = weight_pruning_dict['pruning']['config']['ch_axis']
+        ch_axis = weight_pruning_dict['pruning']['pruning_granularity']['config']['ch_axis']
         weights_list = [getattr(layer, weight_name) for layer in sharing_layers]
         mask_sharing_dict['pruning'].append(dict(
             weight_name=weight_name,
