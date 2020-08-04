@@ -61,21 +61,6 @@ pruning:
             class_name: 'ChannelPruning'
             config:
               ch_axis: -1
-  - layer_name: 'fc10'
-    pruning:
-      - weight_name: 'kernel'
-        pruning:
-          pruning_schedule:
-            class_name: 'ConstantSparsity'
-            config:
-              target_sparsity: 0.5
-              begin_step: 0
-              end_step: -1
-              frequency: 100
-          pruning_granularity:
-            class_name: 'ChannelPruning'
-            config:
-              ch_axis: -1
 share_mask:
   - layer_names:
     - 'res2block_0_branch2b'
