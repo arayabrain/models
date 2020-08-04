@@ -115,19 +115,24 @@ def _convert_config(model, model_pruning_config):
   model_pruning_dict = dict()
 
   model_pruning_dict['share_mask'] = []
+
   for mask_sharing_config in model_pruning_config.share_mask:
-    # TODO: debug this for block.
     layer_names = mask_sharing_config.layer_names
+    mask_sharing_dict = mask_sharing_config.as_dict()
     layer_pruning_configs = []
     for layer_name in layer_names:
-      for i, layer_pruning_config in enumerate(model_pruning_config.pruning):
+      for layer_pruning_config in model_pruning_config.pruning:
         if layer_pruning_config.layer_name == layer_name:
           layer_pruning_configs.append(layer_pruning_config)
-          model_pruning_config.pruning.pop(i)
     assert len(layer_names) == len(layer_pruning_configs)
     assert all(layer_pruning_config.pruning == layer_pruning_configs[0].pruning
                for layer_pruning_config in layer_pruning_configs)
-    mask_sharing_config._pruning = layer_pruning_configs[0].pruning
+    model_pruning_config.pruning = [
+        x for x in model_pruning_config.pruning if x.layer_name not in layer_names
+    ]
+    mask_sharing_dict['pruning'] = layer_pruning_configs[0].as_dict()['pruning']
+    model_pruning_dict['share_mask'].append(mask_sharing_dict)
+
   for layer_pruning_config in model_pruning_config.pruning:
     mask_sharing_dict = MaskSharingConfig(
         layer_names=[layer_pruning_config.layer_name]).as_dict()
