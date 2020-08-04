@@ -63,7 +63,7 @@ def get_dtype_map() -> Mapping[str, tf.dtypes.DType]:
       'float16': tf.float16,
       'fp32': tf.float32,
       'bf16': tf.bfloat16,
-    }
+  }
 
 
 def _get_metrics(one_hot: bool) -> Mapping[Text, Any]:
@@ -381,14 +381,14 @@ def train_and_eval(
     serialize_config(params=params, model_dir=params.model_dir)
     # TODO(dankondratyuk): callbacks significantly slow down training
     callbacks = custom_callbacks.get_callbacks(
-      model_checkpoint=params.train.callbacks.enable_checkpoint_and_export,
-      include_tensorboard=params.train.callbacks.enable_tensorboard,
-      time_history=params.train.callbacks.enable_time_history,
-      track_lr=params.train.tensorboard.track_lr,
-      write_model_weights=params.train.tensorboard.write_model_weights,
-      batch_size=train_builder.global_batch_size,
-      log_steps=params.train.time_history.log_steps,
-      model_dir=params.model_dir)
+        model_checkpoint=params.train.callbacks.enable_checkpoint_and_export,
+        include_tensorboard=params.train.callbacks.enable_tensorboard,
+        time_history=params.train.callbacks.enable_time_history,
+        track_lr=params.train.tensorboard.track_lr,
+        write_model_weights=params.train.tensorboard.write_model_weights,
+        batch_size=train_builder.global_batch_size,
+        log_steps=params.train.time_history.log_steps,
+        model_dir=params.model_dir)
   elif params.mode == 'eval':
     callbacks = None
 
