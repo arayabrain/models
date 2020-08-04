@@ -197,7 +197,12 @@ def predict_sparsity(model, model_pruning_config):
     weights = K.get_value(weights)
     return 1.0 - np.count_nonzero(weights) / float(weights.size)
 
+  def _get_shared_sparsity(weights_list):
+   weights = tf.add_n([tf.abs(x) for x in weights_list])
+   return _get_sparsity(weights)
+
   model_sparsity_dict = _expand_model_pruning_config(model, model_pruning_config).as_dict()
+
   for layer_pruning_dict in model_sparsity_dict['pruning']:
     layer_name = layer_pruning_dict['layer_name']
     for weight_pruning_dict in layer_pruning_dict['pruning']:
@@ -217,6 +222,27 @@ def predict_sparsity(model, model_pruning_config):
           pruning_schedule.get_final_update_step())
       assert bool(should_prune.numpy())
       weight_pruning_dict['predicted_sparsity'] = float(target_sparsity.numpy())
+
+  if model_sparsity_dict['share_mask']:
+    for mask_sharing_dict in model_sparsity_dict['share_mask']:
+      layer_names = mask_sharing_dict['layer_names']
+      mask_sharing_dict['pruning'] = []
+      for _layer_pruning_dict in model_sparsity_dict['pruning']:
+        if _layer_pruning_dict['layer_name'] == layer_names[0]:
+          layer_pruning_dict = _layer_pruning_dict
+          break
+      weight_names = [weight_pruning_dict['weight_name']
+                      for weight_pruning_dict in layer_pruning_dict['pruning']]
+      sharing_layers = [model.get_layer(layer_name) for layer_name in layer_names]
+      for weight_name in weight_names:
+        weights_list = []
+        for layer in sharing_layers:
+          weights_list.append(getattr(layer, weight_name))
+        mask_sharing_dict['pruning'].append(dict(
+            weight_name=weight_name,
+            current_shared_sparsity=_get_shared_sparsity(weights_list)
+        ))
+
   return model_sparsity_dict
 
 
