@@ -45,6 +45,9 @@ from official.vision.image_classification.resnet import common
 from official.vision.image_classification.resnet import resnet_model
 from official.vision.image_classification.mobilenet_v1 import mobilenet_v1_model
 from official.vision.image_classification.pruning import cprune_from_config
+from official.vision.image_classification.pruning import pruning_base_configs
+#from official.vision.image_classification.pruning.efficientnet import efficientnet_pruning_config
+#from official.vision.image_classification.pruning.mobilenet_v1 import mobilenet_v1_pruning_config
 from official.vision.image_classification.pruning.resnet_imagenet import resnet_imagenet_pruning_config
 from tensorflow_model_optimization.python.core.sparsity.keras import cpruning_callbacks
 from tensorflow_model_optimization.python.core.sparsity.keras import cprune
@@ -61,6 +64,14 @@ def get_models() -> Mapping[str, tf.keras.Model]:
       'mobilenet_v1': mobilenet_v1_model.mobilenet_v1
   }
 
+
+def get_pruning() -> Mapping[str, pruning_base_configs.ModelPruningConfig]:
+  """Returns the mapping from model type name to model pruning config."""
+  return {
+      'efficientnet': None,
+      'resnet': resnet_imagenet_pruning_config.ResNet50PruningConfig(),
+      'mobilenet_v1': None,
+  }
 
 def get_dtype_map() -> Mapping[str, tf.dtypes.DType]:
   """Returns the mapping from dtype string representations to TF dtypes."""
@@ -360,7 +371,7 @@ def train_and_eval(
 
     if flags.FLAGS.pruning_config_file:
 
-      pruning_params = resnet_imagenet_pruning_config.ResNet50PruningConfig()
+      pruning_params = get_pruning()[params.model_name]
 
       params_dict.override_params_dict(
           pruning_params, flags.FLAGS.pruning_config_file, is_strict=False)
@@ -437,7 +448,7 @@ def train_and_eval(
         verbose=flags.FLAGS.verbose,
         **validation_kwargs)
   elif params.mode == 'eval':
-    history = None
+    history = cprune.apply_cpruning_masks(model)
 
   if flags.FLAGS.pruning_config_file:
     _pruning_params = cprune_from_config.predict_sparsity(model, pruning_params)
