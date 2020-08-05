@@ -375,7 +375,7 @@ def train_and_eval(
 
       params_dict.override_params_dict(
           pruning_params, flags.FLAGS.pruning_config_file, is_strict=False)
-      logging.info('Specified pruning params: %s', pp.pformat(params.as_dict()))
+      logging.info('Specified pruning params: %s', pp.pformat(pruning_params.as_dict()))
 
       _pruning_params = cprune_from_config.predict_sparsity(model, pruning_params)
       logging.info('Understood pruning params: %s', pp.pformat(_pruning_params))
