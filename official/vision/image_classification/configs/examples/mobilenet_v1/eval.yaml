@@ -1,0 +1,52 @@
+runtime:
+  model_dir: null
+  mode: 'eval'
+  distribution_strategy: 'mirrored'
+  num_gpus: 1
+train_dataset:
+  name: 'imagenet2012'
+  data_dir: null
+  builder: 'tfds'
+  split: 'train'
+  image_size: 224
+  num_classes: 1000
+  num_examples: 1281167
+  batch_size: 64
+  use_per_replica_batch_size: True
+  dtype: 'float32'
+  mean_subtract: True
+  standardize: True
+validation_dataset:
+  name: 'imagenet2012'
+  data_dir: null
+  builder: 'tfds'
+  split: 'validation'
+  image_size: 224
+  num_classes: 1000
+  num_examples: 50000
+  batch_size: 64
+  use_per_replica_batch_size: True
+  dtype: 'float32'
+  mean_subtract: True
+  standardize: True
+model:
+  model_name: 'mobilenet_v1'
+  # model_weights_path: '/path/to/model_weights_path'
+  model_params:
+    dropout_prob: 0.001
+  optimizer:
+    name: 'momentum'
+    momentum: 0.9
+    decay: 0.9
+    epsilon: 0.001
+  learning_rate:
+    name: 'exponential'
+    initial_lr: 0.045
+    decay_epochs: 2.5
+train:
+  resume_checkpoint: False
+  callbacks:
+    enable_time_history: False
+evaluation:
+  epochs_between_evals: 1
+  eval_data: 'train'
