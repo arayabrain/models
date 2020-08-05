@@ -18,31 +18,22 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import pprint
-
 from absl import app
 from absl import flags
-from absl import logging
 import numpy as np
 import tensorflow as tf
 from official.benchmark.models import resnet_cifar_model
-from official.modeling.hyperparams import params_dict
 from official.utils.flags import core as flags_core
 from official.utils.logs import logger
 from official.utils.misc import distribution_utils
 from official.utils.misc import keras_utils
 from official.vision.image_classification.resnet import cifar_preprocessing
 from official.vision.image_classification.resnet import common
-from official.vision.image_classification.pruning import cprune_from_config
-from official.vision.image_classification.pruning.resnet_cifar import resnet_cifar_pruning_config
-from tensorflow_model_optimization.python.core.sparsity.keras import cpruning_callbacks
-from tensorflow_model_optimization.python.core.sparsity.keras import cprune
 
 
 LR_SCHEDULE = [  # (multiplier, epoch to start) tuples
     (0.1, 91), (0.01, 136), (0.001, 182)
 ]
-pp = pprint.PrettyPrinter()
 
 
 def learning_rate_schedule(current_epoch,
@@ -72,39 +63,6 @@ def learning_rate_schedule(current_epoch,
     else:
       break
   return learning_rate
-
-
-def resume_from_checkpoint(model: tf.keras.Model,
-                           model_dir: str,
-                           train_steps: int) -> int:
-  """Resumes from the latest checkpoint, if possible.
-
-  Loads the model weights and optimizer settings from a checkpoint.
-  This function should be used in case of preemption recovery.
-
-  Args:
-    model: The model whose weights should be restored.
-    model_dir: The directory where model weights were saved.
-    train_steps: The number of steps to train.
-
-  Returns:
-    The epoch of the latest checkpoint, or 0 if not restoring.
-
-  """
-  logging.info('Load from checkpoint is enabled.')
-  latest_checkpoint = tf.train.latest_checkpoint(model_dir)
-  logging.info('latest_checkpoint: %s', latest_checkpoint)
-  if not latest_checkpoint:
-    logging.info('No checkpoint detected.')
-    return 0
-
-  logging.info('Checkpoint file %s found and restoring from '
-               'checkpoint', latest_checkpoint)
-  model.load_weights(latest_checkpoint)
-  initial_epoch = model.optimizer.iterations // train_steps
-  logging.info('Completed loading from checkpoint.')
-  logging.info('Resuming from epoch %d', initial_epoch)
-  return int(initial_epoch)
 
 
 class LearningRateBatchScheduler(tf.keras.callbacks.Callback):
@@ -245,19 +203,6 @@ def run(flags_obj):
   with strategy_scope:
     optimizer = common.get_optimizer(lr_schedule)
     model = resnet_cifar_model.resnet56(classes=cifar_preprocessing.NUM_CLASSES)
-
-    if flags_obj.pruning_config_file:
-      params = resnet_cifar_pruning_config.ResNet56PruningConfig()
-
-      params_dict.override_params_dict(
-          params, flags_obj.pruning_config_file, is_strict=False)
-      logging.info('Specified pruning params: %s', pp.pformat(params.as_dict()))
-
-      _params = cprune_from_config.predict_sparsity(model, params)
-      logging.info('Understood pruning params: %s', pp.pformat(_params))
-
-      model = cprune_from_config.cprune_from_config(model, params)
-
     model.compile(
         loss='sparse_categorical_crossentropy',
         optimizer=optimizer,
@@ -267,18 +212,7 @@ def run(flags_obj):
 
   train_epochs = flags_obj.train_epochs
 
-  initial_epoch = 0
-  if flags_obj.resume_checkpoint:
-    initial_epoch = resume_from_checkpoint(model=model,
-                                           model_dir=flags_obj.model_dir,
-                                           train_steps=steps_per_epoch)
-
   callbacks = common.get_callbacks(steps_per_epoch)
-  if flags_obj.pruning_config_file:
-    callbacks += [
-      cpruning_callbacks.UpdateCPruningStep(),
-      #cpruning_callbacks.CPruningSummaries(log_dir=flags_obj.model_dir),
-    ]
 
   if not flags_obj.use_tensor_lr:
     lr_callback = LearningRateBatchScheduler(
@@ -310,26 +244,14 @@ def run(flags_obj):
     no_dist_strat_device = tf.device('/device:GPU:0')
     no_dist_strat_device.__enter__()
 
-  if flags_obj.mode == 'train_and_eval':
-    history = model.fit(train_input_dataset,
-                        epochs=train_epochs,
-                        steps_per_epoch=steps_per_epoch,
-                        initial_epoch=initial_epoch,
-                        callbacks=callbacks,
-                        validation_steps=num_eval_steps,
-                        validation_data=validation_data,
-                        validation_freq=flags_obj.epochs_between_evals,
-                        verbose=2)
-  elif flags_obj.mode == 'eval':
-    callbacks = None
-    history = cprune.apply_cpruning_masks(model)
-  else:
-    raise ValueError('{} is not a valid mode.'.format(flags.FLAGS.mode))
-
-  if flags.FLAGS.pruning_config_file:
-    _params = cprune_from_config.predict_sparsity(model, params)
-    logging.info('Pruning result: %s', pp.pformat(_params))
-
+  history = model.fit(train_input_dataset,
+                      epochs=train_epochs,
+                      steps_per_epoch=steps_per_epoch,
+                      callbacks=callbacks,
+                      validation_steps=num_eval_steps,
+                      validation_data=validation_data,
+                      validation_freq=flags_obj.epochs_between_evals,
+                      verbose=2)
   eval_output = None
   if not flags_obj.skip_eval:
     eval_output = model.evaluate(eval_input_dataset,
@@ -350,16 +272,6 @@ def define_cifar_flags():
                           model_dir='/tmp/cifar10_model',
                           epochs_between_evals=10,
                           batch_size=128)
-
-  flags.DEFINE_string('pruning_config_file', None,
-                      'Path to a yaml file of model pruning configuration.')
-  flags.DEFINE_string(
-    'mode',
-    default=None,
-    help='Mode to run: `train_and_eval` or `eval`.')
-  flags.DEFINE_bool('resume_checkpoint', None,
-                    'Whether or not to enable load checkpoint loading. Defaults '
-                    'to None.')
 
 
 def main(_):
