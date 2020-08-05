@@ -54,6 +54,7 @@ def distribution_strategy_combinations() -> Iterable[Tuple[Any, ...]]:
       model=[
           'efficientnet',
           'resnet',
+          'mobilenet_v1',
       ],
       mode='eager',
       dataset=[

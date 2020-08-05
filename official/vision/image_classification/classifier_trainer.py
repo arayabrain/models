@@ -43,13 +43,15 @@ from official.vision.image_classification.configs import configs
 from official.vision.image_classification.efficientnet import efficientnet_model
 from official.vision.image_classification.resnet import common
 from official.vision.image_classification.resnet import resnet_model
+from official.vision.image_classification.mobilenet_v1 import mobilenet_v1_model
 
 
 def get_models() -> Mapping[str, tf.keras.Model]:
   """Returns the mapping from model type name to Keras model."""
-  return  {
+  return {
       'efficientnet': efficientnet_model.EfficientNet.from_name,
       'resnet': resnet_model.resnet50,
+      'mobilenet_v1': mobilenet_v1_model.mobilenet_v1
   }
 
 
@@ -61,7 +63,7 @@ def get_dtype_map() -> Mapping[str, tf.dtypes.DType]:
       'float16': tf.float16,
       'fp32': tf.float32,
       'bf16': tf.bfloat16,
-    }
+  }
 
 
 def _get_metrics(one_hot: bool) -> Mapping[Text, Any]:
@@ -283,6 +285,14 @@ def define_classifier_flags():
       'log_steps',
       default=100,
       help='The interval of steps between logging of batch level stats.')
+  flags.DEFINE_integer(
+      'verbose',
+      default=1,
+      help='0, 1, or 2. Verbosity mode.'
+      '0 = silent, 1 = progress bar, 2 = one line per epoch.'
+      'Note that the progress bar is not particularly useful when logged to a file, '
+      'so verbose=2 is recommended when not running interactively '
+      '(eg, in a production environment).')
 
 
 def serialize_config(params: base_configs.ExperimentConfig,
@@ -366,6 +376,7 @@ def train_and_eval(
       initial_epoch = resume_from_checkpoint(model=model,
                                              model_dir=params.model_dir,
                                              train_steps=train_steps)
+
   if params.mode == 'train_and_eval':
     serialize_config(params=params, model_dir=params.model_dir)
     # TODO(dankondratyuk): callbacks significantly slow down training
@@ -375,7 +386,6 @@ def train_and_eval(
         time_history=params.train.callbacks.enable_time_history,
         track_lr=params.train.tensorboard.track_lr,
         write_model_weights=params.train.tensorboard.write_model_weights,
-        initial_step=initial_epoch * train_steps,
         batch_size=train_builder.global_batch_size,
         log_steps=params.train.time_history.log_steps,
         model_dir=params.model_dir)
@@ -398,6 +408,7 @@ def train_and_eval(
         steps_per_epoch=train_steps,
         initial_epoch=initial_epoch,
         callbacks=callbacks,
+        verbose=flags.FLAGS.verbose,
         **validation_kwargs)
   elif params.mode == 'eval':
     history = None
