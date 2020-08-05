@@ -1,0 +1,59 @@
+# Training configuration for mobilenet_v1 trained on ImageNet on GPUs.
+# Reaches > 76.1% within 90 epochs.
+# Note: This configuration uses a scaled per-replica batch size based on the number of devices.
+runtime:
+  model_dir: null
+  mode: 'train_and_eval'
+  distribution_strategy: 'mirrored'
+  num_gpus: 4
+train_dataset:
+  name: 'imagenet2012'
+  data_dir: null
+  builder: 'tfds'
+  split: 'train'
+  image_size: 224
+  num_classes: 1000
+  num_examples: 1281167
+  batch_size: 64
+  use_per_replica_batch_size: True
+  dtype: 'float32'
+  mean_subtract: True
+  standardize: True
+validation_dataset:
+  name: 'imagenet2012'
+  data_dir: null
+  builder: 'tfds'
+  split: 'validation'
+  image_size: 224
+  num_classes: 1000
+  num_examples: 50000
+  batch_size: 64
+  use_per_replica_batch_size: True
+  dtype: 'float32'
+  mean_subtract: True
+  standardize: True
+model:
+  model_name: 'mobilenet_v1'
+  model_params:
+    dropout_prob: 0.001
+  optimizer:
+    name: 'momentum'
+    momentum: 0.9
+    decay: 0.9
+    epsilon: 0.001
+  learning_rate:
+    name: 'exponential'
+    initial_lr: 0.18
+    decay_epochs: 2.5
+    warmup_epochs: 5
+  loss:
+    name: 'categorical_crossentropy'
+    label_smoothing: 0.1
+train:
+  resume_checkpoint: True
+  epochs: 256
+  callbacks:
+    enable_time_history: False
+evaluation:
+  epochs_between_evals: 1
+  # skip_eval: True
