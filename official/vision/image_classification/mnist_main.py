@@ -18,6 +18,7 @@ from __future__ import division
 from __future__ import print_function
 
 import os
+import pprint
 
 from absl import app
 from absl import flags
@@ -25,12 +26,18 @@ from absl import logging
 import tensorflow as tf
 import tensorflow_datasets as tfds
 
+from official.modeling.hyperparams import params_dict
 from official.utils.flags import core as flags_core
 from official.utils.misc import distribution_utils
 from official.utils.misc import model_helpers
 from official.vision.image_classification.resnet import common
+from official.vision.image_classification.pruning import cprune_from_config
+from official.vision.image_classification.pruning.mnist import mnist_pruning_config
+from tensorflow_model_optimization.python.core.sparsity.keras import cpruning_callbacks
+from tensorflow_model_optimization.python.core.sparsity.keras import cprune
 
 FLAGS = flags.FLAGS
+pp = pprint.PrettyPrinter()
 
 
 def build_model():
@@ -41,6 +48,7 @@ def build_model():
   y = tf.keras.layers.Conv2D(filters=32,
                              kernel_size=5,
                              padding='same',
+                             use_bias=False,
                              activation='relu')(image)
   y = tf.keras.layers.MaxPooling2D(pool_size=(2, 2),
                                    strides=(2, 2),
@@ -48,12 +56,13 @@ def build_model():
   y = tf.keras.layers.Conv2D(filters=32,
                              kernel_size=5,
                              padding='same',
+                             use_bias=False,
                              activation='relu')(y)
   y = tf.keras.layers.MaxPooling2D(pool_size=(2, 2),
                                    strides=(2, 2),
                                    padding='same')(y)
   y = tf.keras.layers.Flatten()(y)
-  y = tf.keras.layers.Dense(1024, activation='relu')(y)
+  y = tf.keras.layers.Dense(1024, activation='relu', use_bias=False)(y)
   y = tf.keras.layers.Dropout(0.4)(y)
 
   probs = tf.keras.layers.Dense(10, activation='softmax')(y)
@@ -67,6 +76,39 @@ def build_model():
 def decode_image(example, feature):
   """Convert image to float32 and normalize from [0, 255] to [0.0, 1.0]."""
   return tf.cast(feature.decode_example(example), dtype=tf.float32) / 255
+
+
+def resume_from_checkpoint(model: tf.keras.Model,
+                           model_dir: str,
+                           train_steps: int) -> int:
+  """Resumes from the latest checkpoint, if possible.
+
+  Loads the model weights and optimizer settings from a checkpoint.
+  This function should be used in case of preemption recovery.
+
+  Args:
+    model: The model whose weights should be restored.
+    model_dir: The directory where model weights were saved.
+    train_steps: The number of steps to train.
+
+  Returns:
+    The epoch of the latest checkpoint, or 0 if not restoring.
+
+  """
+  logging.info('Load from checkpoint is enabled.')
+  latest_checkpoint = tf.train.latest_checkpoint(model_dir)
+  logging.info('latest_checkpoint: %s', latest_checkpoint)
+  if not latest_checkpoint:
+    logging.info('No checkpoint detected.')
+    return 0
+
+  logging.info('Checkpoint file %s found and restoring from '
+               'checkpoint', latest_checkpoint)
+  model.load_weights(latest_checkpoint)
+  initial_epoch = model.optimizer.iterations // train_steps
+  logging.info('Completed loading from checkpoint.')
+  logging.info('Resuming from epoch %d', initial_epoch)
+  return int(initial_epoch)
 
 
 def run(flags_obj, datasets_override=None, strategy_override=None):
@@ -106,6 +148,19 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
     optimizer = tf.keras.optimizers.SGD(learning_rate=lr_schedule)
 
     model = build_model()
+
+    if flags_obj.pruning_config_file:
+      pruning_params = mnist_pruning_config.MNISTPruningConfig()
+
+      params_dict.override_params_dict(
+          pruning_params, flags_obj.pruning_config_file, is_strict=False)
+      logging.info('Specified pruning params: %s', pp.pformat(pruning_params.as_dict()))
+
+      _pruning_params = cprune_from_config.predict_sparsity(model, pruning_params)
+      logging.info('Understood pruning params: %s', pp.pformat(_pruning_params))
+
+      model = cprune_from_config.cprune_from_config(model, pruning_params)
+
     model.compile(
         optimizer=optimizer,
         loss='sparse_categorical_crossentropy',
@@ -115,27 +170,49 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
   train_steps = num_train_examples // flags_obj.batch_size
   train_epochs = flags_obj.train_epochs
 
+  initial_epoch = 0
+  if flags_obj.resume_checkpoint:
+    initial_epoch = resume_from_checkpoint(model=model,
+                                           model_dir=flags_obj.model_dir,
+                                           train_steps=train_steps)
+
   ckpt_full_path = os.path.join(flags_obj.model_dir, 'model.ckpt-{epoch:04d}')
   callbacks = [
       tf.keras.callbacks.ModelCheckpoint(
           ckpt_full_path, save_weights_only=True),
       tf.keras.callbacks.TensorBoard(log_dir=flags_obj.model_dir),
   ]
+  if flags_obj.pruning_config_file:
+    callbacks += [
+      cpruning_callbacks.UpdateCPruningStep(),
+      #cpruning_callbacks.CPruningSummaries(log_dir=flags_obj.model_dir),
+    ]
 
   num_eval_examples = mnist.info.splits['test'].num_examples
   num_eval_steps = num_eval_examples // flags_obj.batch_size
 
-  history = model.fit(
-      train_input_dataset,
-      epochs=train_epochs,
-      steps_per_epoch=train_steps,
-      callbacks=callbacks,
-      validation_steps=num_eval_steps,
-      validation_data=eval_input_dataset,
-      validation_freq=flags_obj.epochs_between_evals)
+  if flags_obj.mode == 'train_and_eval':
+    history = model.fit(
+        train_input_dataset,
+        epochs=train_epochs,
+        steps_per_epoch=train_steps,
+        initial_epoch=initial_epoch,
+        callbacks=callbacks,
+        validation_steps=num_eval_steps,
+        validation_data=eval_input_dataset,
+        validation_freq=flags_obj.epochs_between_evals)
+  elif flags_obj.mode == 'eval':
+    callbacks = None
+    history = cprune.apply_cpruning_masks(model)
+  else:
+    raise ValueError('{} is not a valid mode.'.format(flags.FLAGS.mode))
 
   export_path = os.path.join(flags_obj.model_dir, 'saved_model')
   model.save(export_path, include_optimizer=False)
+
+  if flags_obj.pruning_config_file:
+    _pruning_params = cprune_from_config.predict_sparsity(model, pruning_params)
+    logging.info('Pruning result: %s', pp.pformat(_pruning_params))
 
   eval_output = model.evaluate(
       eval_input_dataset, steps=num_eval_steps, verbose=2)
@@ -157,6 +234,15 @@ def define_mnist_flags():
   flags.DEFINE_bool('download', False,
                     'Whether to download data to `--data_dir`.')
   FLAGS.set_default('batch_size', 1024)
+  flags.DEFINE_string('pruning_config_file', None,
+                      'Path to a yaml file of model pruning configuration.')
+  flags.DEFINE_string(
+      'mode',
+      default=None,
+      help='Mode to run: `train_and_eval` or `eval`.')
+  flags.DEFINE_bool('resume_checkpoint', None,
+                    'Whether or not to enable load checkpoint loading. Defaults '
+                    'to None.')
 
 
 def main(_):

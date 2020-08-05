@@ -44,6 +44,16 @@ from official.vision.image_classification.efficientnet import efficientnet_model
 from official.vision.image_classification.resnet import common
 from official.vision.image_classification.resnet import resnet_model
 from official.vision.image_classification.mobilenet_v1 import mobilenet_v1_model
+from official.vision.image_classification.pruning import cprune_from_config
+from official.vision.image_classification.pruning import pruning_base_configs
+#from official.vision.image_classification.pruning.efficientnet import efficientnet_pruning_config
+from official.vision.image_classification.pruning.mobilenet_v1 import mobilenet_v1_pruning_config
+from official.vision.image_classification.pruning.resnet_imagenet import resnet_imagenet_pruning_config
+from tensorflow_model_optimization.python.core.sparsity.keras import cpruning_callbacks
+from tensorflow_model_optimization.python.core.sparsity.keras import cprune
+
+
+pp = pprint.PrettyPrinter()
 
 
 def get_models() -> Mapping[str, tf.keras.Model]:
@@ -54,6 +64,14 @@ def get_models() -> Mapping[str, tf.keras.Model]:
       'mobilenet_v1': mobilenet_v1_model.mobilenet_v1
   }
 
+
+def get_pruning() -> Mapping[str, pruning_base_configs.ModelPruningConfig]:
+  """Returns the mapping from model type name to model pruning config."""
+  return {
+      #'efficientnet': efficientnet_pruning_config.EfficientNetPruningConfig(),
+      'resnet': resnet_imagenet_pruning_config.ResNet50PruningConfig(),
+      'mobilenet_v1': mobilenet_v1_pruning_config.MobileNetV1PruningConfig(),
+  }
 
 def get_dtype_map() -> Mapping[str, tf.dtypes.DType]:
   """Returns the mapping from dtype string representations to TF dtypes."""
@@ -182,8 +200,6 @@ def _get_params_from_flags(flags_obj: flags.FlagValues):
                         flags_obj.params_override,
                         flags_overrides)
 
-  pp = pprint.PrettyPrinter()
-
   logging.info('Base params: %s', pp.pformat(params.as_dict()))
 
   for param in overriding_configs:
@@ -293,6 +309,8 @@ def define_classifier_flags():
       'Note that the progress bar is not particularly useful when logged to a file, '
       'so verbose=2 is recommended when not running interactively '
       '(eg, in a production environment).')
+  flags.DEFINE_string('pruning_config_file', None,
+                      'Path to a yaml file of model pruning configuration.')
 
 
 def serialize_config(params: base_configs.ExperimentConfig,
@@ -350,6 +368,20 @@ def train_and_eval(
         checkpoint = params.model.model_weights_path
       logging.info('Load weights from  %s', checkpoint)
       model.load_weights(checkpoint)
+
+    if flags.FLAGS.pruning_config_file:
+
+      pruning_params = get_pruning()[params.model.name]
+
+      params_dict.override_params_dict(
+          pruning_params, flags.FLAGS.pruning_config_file, is_strict=False)
+      logging.info('Specified pruning params: %s', pp.pformat(pruning_params.as_dict()))
+
+      _pruning_params = cprune_from_config.predict_sparsity(model, pruning_params)
+      logging.info('Understood pruning params: %s', pp.pformat(_pruning_params))
+
+      model = cprune_from_config.cprune_from_config(model, pruning_params)
+
     learning_rate = optimizer_factory.build_learning_rate(
         params=params.model.learning_rate,
         batch_size=train_builder.global_batch_size,
@@ -389,6 +421,11 @@ def train_and_eval(
         batch_size=train_builder.global_batch_size,
         log_steps=params.train.time_history.log_steps,
         model_dir=params.model_dir)
+    if flags.FLAGS.pruning_config_file:
+      callbacks += [
+        cpruning_callbacks.UpdateCPruningStep(),
+        # cpruning_callbacks.CPruningSummaries(log_dir=params.model_dir),
+      ]
   elif params.mode == 'eval':
     callbacks = None
 
@@ -411,7 +448,11 @@ def train_and_eval(
         verbose=flags.FLAGS.verbose,
         **validation_kwargs)
   elif params.mode == 'eval':
-    history = None
+    history = cprune.apply_cpruning_masks(model)
+
+  if flags.FLAGS.pruning_config_file:
+    _pruning_params = cprune_from_config.predict_sparsity(model, pruning_params)
+    logging.info('Pruning result: %s', pp.pformat(_pruning_params))
 
   validation_output = None
   if not params.evaluation.skip_eval or params.mode == 'eval':
@@ -437,6 +478,8 @@ def train_and_eval(
 
 def export(params: base_configs.ExperimentConfig):
   """Runs the model export functionality."""
+  if flags.FLAGS.pruning_config_file:
+    raise ValueError
   logging.info('Exporting model.')
   model_params = params.model.model_params.as_dict()
   model = get_models()[params.model.name](**model_params)

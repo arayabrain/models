@@ -1,0 +1,52 @@
+# Fine-grained pruning configuration for MobileNet V1.
+model_name: 'mobilenetV1'
+pruning:
+  - layer_name: 'Conv2d_0'
+    pruning:
+      - weight_name: 'kernel'
+        pruning:
+          pruning_schedule:
+            class_name: 'ConstantSparsity'
+            config:
+              target_sparsity: 0.5
+              begin_step: 0
+              end_step: -1
+              frequency: 100
+          pruning_granularity:
+            class_name: 'BlockSparsity'
+            config:
+              block_size: [1, 1]
+              block_pooling_type: 'AVG'
+  - layer_name: '^Conv2d.*pointwise$'
+    pruning:
+      - weight_name: 'kernel'
+        pruning:
+          pruning_schedule:
+            class_name: 'ConstantSparsity'
+            config:
+              target_sparsity: 0.5
+              begin_step: 0
+              end_step: -1
+              frequency: 100
+          pruning_granularity:
+            class_name: 'BlockSparsity'
+            config:
+              block_size: [1, 1]
+              block_pooling_type: 'AVG'
+  - layer_name: 'Conv2d_1c_1x1'
+    pruning:
+      - weight_name: 'kernel'
+        pruning:
+          pruning_schedule:
+            class_name: 'ConstantSparsity'
+            config:
+              target_sparsity: 0.5
+              begin_step: 0
+              end_step: -1
+              frequency: 100
+          pruning_granularity:
+            class_name: 'BlockSparsity'
+            config:
+              block_size: [1, 1]
+              block_pooling_type: 'AVG'
+share_mask: null
