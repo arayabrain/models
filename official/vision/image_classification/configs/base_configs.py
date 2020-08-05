@@ -100,6 +100,7 @@ class EvalConfig(base_config.Config):
   Attributes:
     epochs_between_evals: The number of train epochs to run between evaluations.
       Defaults to None.
+    eval_data: The name of evaluation dataset. 'train' or 'validation' can be selected.
     steps: The number of eval steps to run during evaluation. If None, this will
       be inferred based on the number of images and batch size. Defaults to
       None.
@@ -107,6 +108,7 @@ class EvalConfig(base_config.Config):
 
   """
   epochs_between_evals: int = None
+  eval_data: str = 'validation'
   steps: int = None
   skip_eval: bool = False
 
@@ -197,6 +199,7 @@ class ModelConfig(base_config.Config):
 
   Attributes:
     name: The name of the model. Defaults to None.
+    model_weights_path: Path to weight file. Defaults to None.
     model_params: The parameters used to create the model. Defaults to None.
     num_classes: The number of classes in the model. Defaults to None.
     loss: A `LossConfig` instance. Defaults to None.
@@ -204,6 +207,7 @@ class ModelConfig(base_config.Config):
 
   """
   name: str = None
+  model_weights_path: str = None
   model_params: Mapping[str, Any] = None
   num_classes: int = None
   loss: LossConfig = None
