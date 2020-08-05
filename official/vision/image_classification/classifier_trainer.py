@@ -371,7 +371,7 @@ def train_and_eval(
 
     if flags.FLAGS.pruning_config_file:
 
-      pruning_params = get_pruning()[params.model_name]
+      pruning_params = get_pruning()[params.model.name]
 
       params_dict.override_params_dict(
           pruning_params, flags.FLAGS.pruning_config_file, is_strict=False)
