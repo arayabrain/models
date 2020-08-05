@@ -105,7 +105,7 @@ class PiecewiseConstantDecayWithWarmup(
     """Compute learning rate at given step."""
     def warmup_lr():
       return self._rescaled_lr * (
-          tf.cast(step, tf.float32) / tf.cast(self._warmup_steps, tf.float32))
+          step / tf.cast(self._warmup_steps, tf.float32))
     def piecewise_lr():
       return tf.compat.v1.train.piecewise_constant(
           tf.cast(step, tf.float32), self._step_boundaries, self._lr_values)

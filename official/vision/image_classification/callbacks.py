@@ -97,7 +97,10 @@ class CustomTensorBoard(tf.keras.callbacks.TensorBoard):
     lr_schedule = getattr(self.model.optimizer, "lr", None)
     if isinstance(lr_schedule, tf.keras.optimizers.schedules.LearningRateSchedule):
         logs["learning_rate"] = tf.keras.backend.get_value(
-            lr_schedule(self.model.optimizer.iterations)
+            lr_schedule(
+                tf.keras.backend.get_value(
+                    self.model.optimizer.iterations)
+            )
         )
     return logs
 
