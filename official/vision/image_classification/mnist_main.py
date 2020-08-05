@@ -150,16 +150,16 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
     model = build_model()
 
     if flags_obj.pruning_config_file:
-      params = mnist_pruning_config.MNISTPruningConfig()
+      pruning_params = mnist_pruning_config.MNISTPruningConfig()
 
       params_dict.override_params_dict(
-          params, flags_obj.pruning_config_file, is_strict=False)
-      logging.info('Specified pruning params: %s', pp.pformat(params.as_dict()))
+          pruning_params, flags_obj.pruning_config_file, is_strict=False)
+      logging.info('Specified pruning params: %s', pp.pformat(pruning_params.as_dict()))
 
-      _params = cprune_from_config.predict_sparsity(model, params)
-      logging.info('Understood pruning params: %s', pp.pformat(_params))
+      _pruning_params = cprune_from_config.predict_sparsity(model, pruning_params)
+      logging.info('Understood pruning params: %s', pp.pformat(_pruning_params))
 
-      model = cprune_from_config.cprune_from_config(model, params)
+      model = cprune_from_config.cprune_from_config(model, pruning_params)
 
     model.compile(
         optimizer=optimizer,
@@ -210,9 +210,9 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
   export_path = os.path.join(flags_obj.model_dir, 'saved_model')
   model.save(export_path, include_optimizer=False)
 
-  if flags.FLAGS.pruning_config_file:
-    _params = cprune_from_config.predict_sparsity(model, params)
-    logging.info('Pruning result: %s', pp.pformat(_params))
+  if flags_obj.pruning_config_file:
+    _pruning_params = cprune_from_config.predict_sparsity(model, pruning_params)
+    logging.info('Pruning result: %s', pp.pformat(_pruning_params))
 
   eval_output = model.evaluate(
       eval_input_dataset, steps=num_eval_steps, verbose=2)
