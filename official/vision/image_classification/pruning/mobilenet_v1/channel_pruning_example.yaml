@@ -1,0 +1,34 @@
+# Channel pruning configuration for MobileNet V1.
+model_name: 'mobilenetV1'
+pruning:
+  - layer_name: 'conv2d'
+    pruning:
+      - weight_name: 'kernel'
+        pruning:
+          pruning_schedule:
+            class_name: 'ConstantSparsity'
+            config:
+              target_sparsity: 0.5
+              begin_step: 0
+              end_step: -1
+              frequency: 100
+          pruning_granularity:
+            class_name: 'ChannelPruning'
+            config:
+              ch_axis: -1
+  - layer_name: '^Conv2d.*pointwise$'
+    pruning:
+      - weight_name: 'kernel'
+        pruning:
+          pruning_schedule:
+            class_name: 'ConstantSparsity'
+            config:
+              target_sparsity: 0.5
+              begin_step: 0
+              end_step: -1
+              frequency: 100
+          pruning_granularity:
+            class_name: 'ChannelPruning'
+            config:
+              ch_axis: -1
+share_mask: null

@@ -47,7 +47,7 @@ from official.vision.image_classification.mobilenet_v1 import mobilenet_v1_model
 from official.vision.image_classification.pruning import cprune_from_config
 from official.vision.image_classification.pruning import pruning_base_configs
 #from official.vision.image_classification.pruning.efficientnet import efficientnet_pruning_config
-#from official.vision.image_classification.pruning.mobilenet_v1 import mobilenet_v1_pruning_config
+from official.vision.image_classification.pruning.mobilenet_v1 import mobilenet_v1_pruning_config
 from official.vision.image_classification.pruning.resnet_imagenet import resnet_imagenet_pruning_config
 from tensorflow_model_optimization.python.core.sparsity.keras import cpruning_callbacks
 from tensorflow_model_optimization.python.core.sparsity.keras import cprune
@@ -68,9 +68,9 @@ def get_models() -> Mapping[str, tf.keras.Model]:
 def get_pruning() -> Mapping[str, pruning_base_configs.ModelPruningConfig]:
   """Returns the mapping from model type name to model pruning config."""
   return {
-      'efficientnet': None,
+      #'efficientnet': efficientnet_pruning_config.EfficientNetPruningConfig(),
       'resnet': resnet_imagenet_pruning_config.ResNet50PruningConfig(),
-      'mobilenet_v1': None,
+      'mobilenet_v1': mobilenet_v1_pruning_config.MobileNetV1PruningConfig(),
   }
 
 def get_dtype_map() -> Mapping[str, tf.dtypes.DType]:
