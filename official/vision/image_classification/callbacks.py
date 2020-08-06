@@ -29,7 +29,6 @@ from typing import Any, List, Optional, MutableMapping
 
 from official.utils.misc import keras_utils
 from official.vision.image_classification.pruning.pruning_base_configs import ModelPruningConfig
-from official.vision.image_classification.pruning import cprune_from_config
 from tensorflow_model_optimization.python.core.keras import compat
 from tensorflow_model_optimization.python.core.sparsity.keras.cprune_registry import ConstraintRegistry
 
