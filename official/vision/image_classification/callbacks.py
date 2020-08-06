@@ -22,10 +22,14 @@ from __future__ import print_function
 import os
 from absl import logging
 
+import numpy as np
 import tensorflow as tf
 from typing import Any, List, MutableMapping
 
 from official.utils.misc import keras_utils
+from tensorflow_model_optimization.python.core.keras import compat
+from tensorflow_model_optimization.python.core.sparsity.keras import cprune_registry
+
 
 
 def get_callbacks(model_checkpoint: bool = True,
@@ -88,9 +92,11 @@ class CustomTensorBoard(tf.keras.callbacks.TensorBoard):
   def __init__(self,
                log_dir: str,
                track_lr: bool = False,
+               prune: bool = False,
                **kwargs):
     super(CustomTensorBoard, self).__init__(log_dir=log_dir, **kwargs)
     self._track_lr = track_lr
+    self._prune = prune
 
   def _collect_learning_rate(self, logs):
     logs = logs or {}
@@ -107,3 +113,50 @@ class CustomTensorBoard(tf.keras.callbacks.TensorBoard):
   def _log_metrics(self, logs, prefix, step):
     if self._track_lr:
       super()._log_metrics(self._collect_learning_rate(logs), prefix, step)
+
+  def _log_pruning_metrics(self, logs, prefix, step):
+    if compat.is_v1_apis():
+      # Safely depend on TF 1.X private API given
+      # no more 1.X releases.
+      self._write_custom_summaries(step, logs)
+    else:  # TF 2.X
+      log_dir = self.log_dir + '/metrics'
+
+      file_writer = tf.summary.create_file_writer(log_dir)
+      file_writer.set_as_default()
+
+      for name, value in logs.items():
+        tf.summary.scalar(name, value, step=step)
+
+      file_writer.flush()
+
+  def on_epoch_begin(self, epoch, logs=None):
+    if logs is not None:
+      super(CustomTensorBoard, self).on_epoch_begin(epoch, logs)
+
+    pruning_logs = {}
+    params = []
+    pruning_weights_constraints \
+        = cprune_registry.collect_pruning_weights_constraints(self.model)
+    for (_, constraint) in pruning_weights_constraints:
+      params.append(constraint.mask)
+      params.append(constraint.threshold)
+
+    params.append(self.model.optimizer.iterations)
+
+    values = tf.keras.backend.batch_get_value(params)
+    iteration = values[-1]
+    del values[-1]
+    del params[-1]
+
+    param_value_pairs = list(zip(params, values))
+
+    for mask, mask_value in param_value_pairs[::2]:
+      pruning_logs.update({
+          mask.name + '/sparsity': 1 - np.mean(mask_value)
+      })
+
+    for threshold, threshold_value in param_value_pairs[1::2]:
+      pruning_logs.update({threshold.name + '/threshold': threshold_value})
+
+    self._log_pruning_metrics(pruning_logs, '', iteration)
