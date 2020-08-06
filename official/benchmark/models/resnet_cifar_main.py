@@ -341,7 +341,7 @@ def run(flags_obj):
     raise ValueError('{} is not a valid mode.'.format(flags.FLAGS.mode))
 
   if flags.FLAGS.pruning_config_file:
-    _params = cprune_from_config.predict_sparsity(model, params)
+    _params = cprune_from_config.predict_sparsity(model, pruning_params)
     logging.info('Pruning result: %s', pp.pformat(_params))
 
   eval_output = None
