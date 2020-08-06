@@ -24,11 +24,13 @@ from absl import logging
 
 import numpy as np
 import tensorflow as tf
-from typing import Any, List, MutableMapping
+from typing import Any, List, Optional, MutableMapping
 
 from official.utils.misc import keras_utils
+from official.vision.image_classification.pruning.pruning_base_configs import ModelPruningConfig
+from official.vision.image_classification.pruning import cprune_from_config
 from tensorflow_model_optimization.python.core.keras import compat
-from tensorflow_model_optimization.python.core.sparsity.keras import cprune_registry
+from tensorflow_model_optimization.python.core.sparsity.keras.cprune_registry import ConstraintRegistry
 
 
 
@@ -36,7 +38,7 @@ def get_callbacks(model_checkpoint: bool = True,
                   include_tensorboard: bool = True,
                   time_history: bool = True,
                   track_lr: bool = True,
-                  prune: bool = False,
+                  model_pruning_config: Optional[ModelPruningConfig] = None,
                   write_model_weights: bool = True,
                   batch_size: int = 0,
                   log_steps: int = 0,
@@ -54,7 +56,7 @@ def get_callbacks(model_checkpoint: bool = True,
         CustomTensorBoard(
             log_dir=model_dir,
             track_lr=track_lr,
-            prune=prune,
+            model_pruning_config=model_pruning_config,
             write_images=write_model_weights))
   if time_history:
     callbacks.append(
@@ -94,11 +96,11 @@ class CustomTensorBoard(tf.keras.callbacks.TensorBoard):
   def __init__(self,
                log_dir: str,
                track_lr: bool = False,
-               prune: bool = False,
+               model_pruning_config: Optional[ModelPruningConfig] = None,
                **kwargs):
     super(CustomTensorBoard, self).__init__(log_dir=log_dir, **kwargs)
     self._track_lr = track_lr
-    self._prune = prune
+    self._model_pruning_config = model_pruning_config
 
   def _collect_learning_rate(self, logs):
     logs = logs or {}
@@ -136,14 +138,21 @@ class CustomTensorBoard(tf.keras.callbacks.TensorBoard):
     if logs is not None:
       super(CustomTensorBoard, self).on_epoch_begin(epoch, logs)
 
-    if self._prune:
+    if self._model_pruning_config:
       pruning_logs = {}
       params = []
-      pruning_weights_constraints \
-          = cprune_registry.collect_pruning_weights_constraints(self.model)
-      for (_, constraint) in pruning_weights_constraints:
-        params.append(constraint.mask)
-        params.append(constraint.threshold)
+      prefixes = []
+
+      for layer_pruning_config in self._model_pruning_config.pruning:
+        layer_name = layer_pruning_config.layer_name
+        layer = self.model.get_layer(layer_name)
+        for weight_pruning_config in layer_pruning_config.pruning:
+          weight_name = weight_pruning_config.weight_name
+          constraint_name = ConstraintRegistry.get_constraint_from_weight(weight_name)
+          constraint = getattr(layer, constraint_name)
+          params.append(constraint.mask)
+          params.append(constraint.threshold)
+          prefixes.append(layer_name + '/' + weight_name + '/')
 
       params.append(self.model.optimizer.iterations)
 
@@ -154,12 +163,12 @@ class CustomTensorBoard(tf.keras.callbacks.TensorBoard):
 
       param_value_pairs = list(zip(params, values))
 
-      for mask, mask_value in param_value_pairs[::2]:
+      for (mask, mask_value), prefix in zip(param_value_pairs[::2], prefixes):
         pruning_logs.update({
-            mask.name + '/sparsity': 1 - np.mean(mask_value)
+            prefix + 'mask_sparsity': 1 - np.mean(mask_value)
         })
 
-      for threshold, threshold_value in param_value_pairs[1::2]:
-        pruning_logs.update({threshold.name + '/threshold': threshold_value})
+      for (threshold, threshold_value), prefix in zip(param_value_pairs[1::2], prefixes):
+        pruning_logs.update({prefix + 'threshold': threshold_value})
 
       self._log_pruning_metrics(pruning_logs, '', iteration)

@@ -178,13 +178,19 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
                                            train_steps=train_steps)
 
   ckpt_full_path = os.path.join(flags_obj.model_dir, 'model.ckpt-{epoch:04d}')
+  model_pruning_config = None
+  if flags_obj.pruning_config_file:
+    model_pruning_config = cprune_from_config._expand_model_pruning_config(
+        model, pruning_params
+    )
+
   callbacks = [
       tf.keras.callbacks.ModelCheckpoint(
           ckpt_full_path, save_weights_only=True),
       custom_callbacks.CustomTensorBoard(
           log_dir=flags_obj.model_dir,
           track_lr=True,
-          prune=bool(flags_obj.pruning_config_file),
+          model_pruning_config=model_pruning_config,
       ),
   ]
   if flags_obj.pruning_config_file:

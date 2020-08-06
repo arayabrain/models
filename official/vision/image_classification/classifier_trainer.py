@@ -412,12 +412,17 @@ def train_and_eval(
   if params.mode == 'train_and_eval':
     serialize_config(params=params, model_dir=params.model_dir)
     # TODO(dankondratyuk): callbacks significantly slow down training
+    model_pruning_config = None
+    if flags.FLAGS.pruning_config_file:
+      model_pruning_config = cprune_from_config._expand_model_pruning_config(
+        model, pruning_params
+      )
     callbacks = custom_callbacks.get_callbacks(
         model_checkpoint=params.train.callbacks.enable_checkpoint_and_export,
         include_tensorboard=params.train.callbacks.enable_tensorboard,
         time_history=params.train.callbacks.enable_time_history,
         track_lr=params.train.tensorboard.track_lr,
-        prune=bool(flags.FLAGS.pruning_config_file),
+        model_pruning_config=model_pruning_config,
         write_model_weights=params.train.tensorboard.write_model_weights,
         batch_size=train_builder.global_batch_size,
         log_steps=params.train.time_history.log_steps,

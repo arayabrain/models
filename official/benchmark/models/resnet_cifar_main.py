@@ -248,16 +248,16 @@ def run(flags_obj):
     model = resnet_cifar_model.resnet56(classes=cifar_preprocessing.NUM_CLASSES)
 
     if flags_obj.pruning_config_file:
-      params = resnet_cifar_pruning_config.ResNet56PruningConfig()
+      pruning_params = resnet_cifar_pruning_config.ResNet56PruningConfig()
 
       params_dict.override_params_dict(
-          params, flags_obj.pruning_config_file, is_strict=False)
-      logging.info('Specified pruning params: %s', pp.pformat(params.as_dict()))
+          pruning_params, flags_obj.pruning_config_file, is_strict=False)
+      logging.info('Specified pruning params: %s', pp.pformat(pruning_params.as_dict()))
 
-      _params = cprune_from_config.predict_sparsity(model, params)
+      _params = cprune_from_config.predict_sparsity(model, pruning_params)
       logging.info('Understood pruning params: %s', pp.pformat(_params))
 
-      model = cprune_from_config.cprune_from_config(model, params)
+      model = cprune_from_config.cprune_from_config(model, pruning_params)
 
     model.compile(
         loss='sparse_categorical_crossentropy',
@@ -274,6 +274,11 @@ def run(flags_obj):
                                            model_dir=flags_obj.model_dir,
                                            train_steps=steps_per_epoch)
 
+  model_pruning_config = None
+  if flags_obj.pruning_config_file:
+    model_pruning_config = cprune_from_config._expand_model_pruning_config(
+        model, pruning_params
+    )
   callbacks = common.get_callbacks(steps_per_epoch)
   for i, callback in enumerate(callbacks):
     if isinstance(callback, tf.keras.callbacks.TensorBoard):
@@ -283,7 +288,7 @@ def run(flags_obj):
     custom_callbacks.CustomTensorBoard(
       log_dir=flags_obj.model_dir,
       track_lr=True,
-      prune=bool(flags_obj.pruning_config_file),
+      model_pruning_config=model_pruning_config,
     )
   )
   if flags_obj.pruning_config_file:
