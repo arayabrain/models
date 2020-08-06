@@ -140,7 +140,7 @@ class CustomTensorBoard(tf.keras.callbacks.TensorBoard):
     if self._model_pruning_config:
       pruning_logs = {}
       params = []
-      prefixes = []
+      postfixes = []
 
       for layer_pruning_config in self._model_pruning_config.pruning:
         layer_name = layer_pruning_config.layer_name
@@ -151,7 +151,7 @@ class CustomTensorBoard(tf.keras.callbacks.TensorBoard):
           constraint = getattr(layer, constraint_name)
           params.append(constraint.mask)
           params.append(constraint.threshold)
-          prefixes.append(layer_name + '/' + weight_name + '/')
+          postfixes.append('/' + layer_name + '/' + weight_name)
 
       params.append(self.model.optimizer.iterations)
 
@@ -162,12 +162,12 @@ class CustomTensorBoard(tf.keras.callbacks.TensorBoard):
 
       param_value_pairs = list(zip(params, values))
 
-      for (mask, mask_value), prefix in zip(param_value_pairs[::2], prefixes):
+      for (mask, mask_value), postfix in zip(param_value_pairs[::2], postfixes):
         pruning_logs.update({
-            prefix + 'mask_sparsity': 1 - np.mean(mask_value)
+            'mask_sparsity' + postfix: 1 - np.mean(mask_value)
         })
 
-      for (threshold, threshold_value), prefix in zip(param_value_pairs[1::2], prefixes):
-        pruning_logs.update({prefix + 'threshold': threshold_value})
+      for (threshold, threshold_value), postfix in zip(param_value_pairs[1::2], postfixes):
+        pruning_logs.update({'threshold' + postfix: threshold_value})
 
       self._log_pruning_metrics(pruning_logs, '', iteration)
