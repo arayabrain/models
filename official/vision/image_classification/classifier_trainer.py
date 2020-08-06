@@ -417,6 +417,7 @@ def train_and_eval(
         include_tensorboard=params.train.callbacks.enable_tensorboard,
         time_history=params.train.callbacks.enable_time_history,
         track_lr=params.train.tensorboard.track_lr,
+        prune=bool(flags.FLAGS.pruning_config_file),
         write_model_weights=params.train.tensorboard.write_model_weights,
         batch_size=train_builder.global_batch_size,
         log_steps=params.train.time_history.log_steps,

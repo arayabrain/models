@@ -36,6 +36,7 @@ def get_callbacks(model_checkpoint: bool = True,
                   include_tensorboard: bool = True,
                   time_history: bool = True,
                   track_lr: bool = True,
+                  prune: bool = False,
                   write_model_weights: bool = True,
                   batch_size: int = 0,
                   log_steps: int = 0,
@@ -53,6 +54,7 @@ def get_callbacks(model_checkpoint: bool = True,
         CustomTensorBoard(
             log_dir=model_dir,
             track_lr=track_lr,
+            prune=prune,
             write_images=write_model_weights))
   if time_history:
     callbacks.append(
@@ -134,29 +136,30 @@ class CustomTensorBoard(tf.keras.callbacks.TensorBoard):
     if logs is not None:
       super(CustomTensorBoard, self).on_epoch_begin(epoch, logs)
 
-    pruning_logs = {}
-    params = []
-    pruning_weights_constraints \
-        = cprune_registry.collect_pruning_weights_constraints(self.model)
-    for (_, constraint) in pruning_weights_constraints:
-      params.append(constraint.mask)
-      params.append(constraint.threshold)
+    if self._prune:
+      pruning_logs = {}
+      params = []
+      pruning_weights_constraints \
+          = cprune_registry.collect_pruning_weights_constraints(self.model)
+      for (_, constraint) in pruning_weights_constraints:
+        params.append(constraint.mask)
+        params.append(constraint.threshold)
 
-    params.append(self.model.optimizer.iterations)
+      params.append(self.model.optimizer.iterations)
 
-    values = tf.keras.backend.batch_get_value(params)
-    iteration = values[-1]
-    del values[-1]
-    del params[-1]
+      values = tf.keras.backend.batch_get_value(params)
+      iteration = values[-1]
+      del values[-1]
+      del params[-1]
 
-    param_value_pairs = list(zip(params, values))
+      param_value_pairs = list(zip(params, values))
 
-    for mask, mask_value in param_value_pairs[::2]:
-      pruning_logs.update({
-          mask.name + '/sparsity': 1 - np.mean(mask_value)
-      })
+      for mask, mask_value in param_value_pairs[::2]:
+        pruning_logs.update({
+            mask.name + '/sparsity': 1 - np.mean(mask_value)
+        })
 
-    for threshold, threshold_value in param_value_pairs[1::2]:
-      pruning_logs.update({threshold.name + '/threshold': threshold_value})
+      for threshold, threshold_value in param_value_pairs[1::2]:
+        pruning_logs.update({threshold.name + '/threshold': threshold_value})
 
-    self._log_pruning_metrics(pruning_logs, '', iteration)
+      self._log_pruning_metrics(pruning_logs, '', iteration)

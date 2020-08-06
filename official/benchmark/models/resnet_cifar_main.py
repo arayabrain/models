@@ -31,6 +31,7 @@ from official.utils.flags import core as flags_core
 from official.utils.logs import logger
 from official.utils.misc import distribution_utils
 from official.utils.misc import keras_utils
+from official.vision.image_classification import callbacks as custom_callbacks
 from official.vision.image_classification.resnet import cifar_preprocessing
 from official.vision.image_classification.resnet import common
 from official.vision.image_classification.pruning import cprune_from_config
@@ -274,11 +275,19 @@ def run(flags_obj):
                                            train_steps=steps_per_epoch)
 
   callbacks = common.get_callbacks(steps_per_epoch)
+  for i, callback in enumerate(callbacks):
+    if isinstance(callback, tf.keras.callbacks.TensorBoard):
+      callbacks.pop(i)
+      break
+  callbacks.append(
+    custom_callbacks.CustomTensorBoard(
+      log_dir=flags_obj.model_dir,
+      track_lr=True,
+      prune=bool(flags_obj.pruning_config_file),
+    )
+  )
   if flags_obj.pruning_config_file:
-    callbacks += [
-      cpruning_callbacks.UpdateCPruningStep(),
-      #cpruning_callbacks.CPruningSummaries(log_dir=flags_obj.model_dir),
-    ]
+    callbacks.append(cpruning_callbacks.UpdateCPruningStep())
 
   if not flags_obj.use_tensor_lr:
     lr_callback = LearningRateBatchScheduler(
