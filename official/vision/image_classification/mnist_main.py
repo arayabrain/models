@@ -251,7 +251,7 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
       for key, value in _stats.items():
         tf.summary.scalar(prefix + key, data=value, step=sparsity_x_16)
       _pruning_params = cprune_from_config.predict_sparsity(model, pruning_params)
-      sparsity = _pruning_params['pruning'][0]['pruning']['0']['current_sparsity']
+      sparsity = _pruning_params['pruning'][0]['pruning'][0]['current_sparsity']
       tf.summary.scalar(prefix + 'sparsity', data=sparsity, step=sparsity_x_16)
 
   else:
