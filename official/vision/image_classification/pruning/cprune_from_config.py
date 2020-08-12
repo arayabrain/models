@@ -393,6 +393,9 @@ def generate_pruning_config(model_name,
       or 'mobilenetV1'.
     sparsity: A `dict`. Keys are `str` representing layer names (or possibly a
       regexp pattern), and values are sparsity (must be convertible to float).
+    end_step:  Step at which to end pruning. `-1` by default. `-1` implies
+        continuing to prune till the end of training (available only for
+        'ConstantSparsity' granularity).
     schedule: 'ConstantSparsity' or 'PolynomialDecay'.
     granularity: 'ArayaMag', 'BlockSparsity', 'ChannelPruning', 'KernelLevel',
       or 'QuasiCyclic'.
