@@ -365,7 +365,7 @@ def _get_resnet_share_mask(model_name='resnet56'):
           mask_sharing_config.layer_names.append(prefix + str(block) + '_branch1')
       share_mask.append(mask_sharing_config)
   elif model_name == 'resnet50':
-    stage_block_pairs = [(2, 3), (3, 4), (5, 6), (6, 3)]
+    stage_block_pairs = [(2, 3), (3, 4), (4, 6), (5, 3)]
     for stage, blocks in stage_block_pairs:
       mask_sharing_config = pruning_base_configs.MaskSharingConfig()
       prefix = 'res' + str(stage)
