@@ -10,6 +10,7 @@ from tensorflow.python.ops import math_ops
 from tensorflow_model_optimization.python.core.sparsity.keras import pruning_schedule as pruning_sched
 from tensorflow_model_optimization.python.core.sparsity.keras import cpruning_granularity as pruning_granu
 from tensorflow_model_optimization.python.core.sparsity.keras import cprune_registry
+import yaml
 
 from official.modeling.hyperparams import params_dict
 from official.vision.image_classification.pruning import  pruning_base_configs
@@ -469,6 +470,19 @@ def generate_pruning_config(model_name,
       model_pruning_config.share_mask = _get_resnet_share_mask(model_name)
 
   if path:
-    params_dict.save_params_dict_to_yaml(model_pruning_config, path)
+    def save_params_dict_to_yaml(params, file_path):
+      """Saves the input ParamsDict to a YAML file.
+
+      Taken from params_dict.save_params_dict_to_yaml.
+      """
+      with tf.io.gfile.GFile(file_path, 'w') as f:
+        #def _my_list_rep(dumper, data):
+        #  # u'tag:yaml.org,2002:seq' is the YAML internal tag for sequence.
+        #  return dumper.represent_sequence(
+        #    u'tag:yaml.org,2002:seq', data, flow_style=True)
+        #
+        #yaml.add_representer(list, _my_list_rep)
+        yaml.dump(params.as_dict(), f, default_flow_style=False)
+    save_params_dict_to_yaml(model_pruning_config, path)
 
   return model_pruning_config
