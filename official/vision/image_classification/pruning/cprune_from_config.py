@@ -356,7 +356,6 @@ def _get_resnet_share_mask(model_name='resnet56'):
   share_mask = []
 
   if model_name == 'resnet56':
-
     for stage in range(2, 5):
       mask_sharing_config = pruning_base_configs.MaskSharingConfig()
       prefix = 'res' + str(stage) + 'block_'
@@ -378,6 +377,7 @@ def _get_resnet_share_mask(model_name='resnet56'):
       share_mask.append(mask_sharing_config)
   else:
     raise ValueError
+  return share_mask
 
 
 def generate_pruning_config(model_name,
@@ -395,7 +395,7 @@ def generate_pruning_config(model_name,
       regexp pattern), and values are sparsity (must be convertible to float).
     end_step:  Step at which to end pruning. `-1` by default. `-1` implies
         continuing to prune till the end of training (available only for
-        'ConstantSparsity' granularity).
+        'ConstantSparsity' schedule).
     schedule: 'ConstantSparsity' or 'PolynomialDecay'.
     granularity: 'ArayaMag', 'BlockSparsity', 'ChannelPruning', 'KernelLevel',
       or 'QuasiCyclic'.
