@@ -150,12 +150,26 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
 
     model = build_model()
 
-    if flags_obj.pruning_config_file:
-      pruning_params = mnist_pruning_config.MNISTPruningConfig()
+    if flags_obj.mode == 'sensitivity_analysis' or flags_obj.pruning_config_file:
+      if flags_obj.mode == 'sensitivity_analysis':
+        if flags_obj.pruning_config_file:
+          raise ValueError
 
-      params_dict.override_params_dict(
-          pruning_params, flags_obj.pruning_config_file, is_strict=False)
-      logging.info('Specified pruning params: %s', pp.pformat(pruning_params.as_dict()))
+        layer_name = [
+            layer.name for layer in model.layers if hasattr(layer, 'kernel')
+        ][flags_obj.sensitivity_layer_count]
+
+        pruning_params = cprune_from_config.generate_sensitivity_config(
+            model_name='mnist',
+            layer_name=layer_name,
+            weight_name='kernel',
+            granularity=flags_obj.sensitivity_granularity,
+            gamma=flags_obj.sensitivity_gamma)
+      else:
+        pruning_params = mnist_pruning_config.MNISTPruningConfig()
+        params_dict.override_params_dict(
+            pruning_params, flags_obj.pruning_config_file, is_strict=False)
+        logging.info('Specified pruning params: %s', pp.pformat(pruning_params.as_dict()))
 
       _pruning_params = cprune_from_config.predict_sparsity(model, pruning_params)
       logging.info('Understood pruning params: %s', pp.pformat(_pruning_params))
@@ -212,6 +226,8 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
   elif flags_obj.mode == 'eval':
     callbacks = None
     history = cprune.apply_cpruning_masks(model)
+  elif flags_obj.mode == 'sensitivity_analysis':
+    callbacks, history = None, None
   else:
     raise ValueError('{} is not a valid mode.'.format(flags.FLAGS.mode))
 
@@ -222,8 +238,21 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
     _pruning_params = cprune_from_config.predict_sparsity(model, pruning_params)
     logging.info('Pruning result: %s', pp.pformat(_pruning_params))
 
-  eval_output = model.evaluate(
-      eval_input_dataset, steps=num_eval_steps, verbose=2)
+  if flags_obj.mode == 'sensitivity_analysis':
+    eval_output = None
+    file_writer = tf.summary.create_file_writer(flags_obj.model_dir + '/metrics')
+    file_writer.set_as_default()
+    for sparsity_x_16 in range(16):
+      cprune.apply_cpruning_masks(model, step=sparsity_x_16)
+      _eval_output = model.evaluate(
+          eval_input_dataset, steps=num_eval_steps, verbose=2)
+      _stats = common.build_stats(history, _eval_output, callbacks)
+      prefix = 'pruning_sensitivity/' + layer_name + '/' + 'kernel' + '/'
+      for key, value in _stats:
+        tf.summary.scalar(prefix + key, data=value, step=sparsity_x_16)
+  else:
+    eval_output = model.evaluate(
+        eval_input_dataset, steps=num_eval_steps, verbose=2)
 
   stats = common.build_stats(history, eval_output, callbacks)
   return stats
@@ -247,7 +276,25 @@ def define_mnist_flags():
   flags.DEFINE_string(
       'mode',
       default=None,
-      help='Mode to run: `train_and_eval` or `eval`.')
+      help='Mode to run: `train_and_eval`, `eval`, or `sensitivity_analysis.')
+  flags.DEFINE_integer(
+      'sensitivity_layer_count',
+      default=0,
+      help='The ordinal number representing a layer whose pruning sensitivity '
+           'is to be analyzed. 0 for `"conv2d"` (the first layer), 3 for '
+           '`"dense_1"` (the last layer) etc. Valid only if '
+           '`mode=sensitivity_analysis`.')
+  flags.DEFINE_string(
+      'sensitivity_granularity',
+      default='BlockSparsity',
+      help='The granularity for analyzing pruning sensitivity. Valid only if '
+           '`mode=sensitivity_analysis`.')
+  flags.DEFINE_integer(
+      'sensitivity_gamma',
+      default=2,
+      help='The gamma parameter for ArayaMag or QuasiCyclic granularity.'
+           ' for analyzing pruning sensitivity. Valid only if '
+           '`mode=sensitivity_analysis`.')
   flags.DEFINE_bool('resume_checkpoint', None,
                     'Whether or not to enable load checkpoint loading. Defaults '
                     'to None.')
