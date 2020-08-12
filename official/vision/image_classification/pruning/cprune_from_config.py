@@ -380,14 +380,6 @@ def _get_resnet_share_mask(model_name='resnet56'):
     raise ValueError
 
 
-def get_fancy_path(sparsity, schedule, granularity):
-  path = ''
-
-  ...
-
-  return path
-
-
 def generate_pruning_config(model_name,
                             sparsity,
                             end_step,
