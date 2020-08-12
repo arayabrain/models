@@ -188,7 +188,7 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
   initial_epoch = 0
   if flags_obj.resume_checkpoint:
     initial_epoch = resume_from_checkpoint(model=model,
-                                           model_dir=flags_obj.model_dir,
+                                           model_dir=flags_obj.checkpoint_dir,
                                            train_steps=train_steps)
 
   ckpt_full_path = os.path.join(flags_obj.model_dir, 'model.ckpt-{epoch:04d}')
