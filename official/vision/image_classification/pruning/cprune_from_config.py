@@ -2,6 +2,7 @@
 
 import copy
 import re
+import string
 
 import numpy as np
 import tensorflow as tf
@@ -10,6 +11,7 @@ from tensorflow_model_optimization.python.core.sparsity.keras import pruning_sch
 from tensorflow_model_optimization.python.core.sparsity.keras import cpruning_granularity as pruning_granu
 from tensorflow_model_optimization.python.core.sparsity.keras import cprune_registry
 
+from official.modeling.hyperparams import params_dict
 from official.vision.image_classification.pruning import  pruning_base_configs
 
 
@@ -280,3 +282,198 @@ def cprune_from_config(model, model_pruning_config):
       model, input_tensors=None, clone_function=clone_function)
   model.set_weights(weights)
   return model
+
+
+def _get_resnet_share_mask(model_name='resnet56'):
+  """Returns a list of MaskSharingConfig's.
+
+  Arguments:
+    model_name: 'resnet56' (CIFAR-10) or 'resnet50' (ImageNet).
+
+  ResNet-56;
+    share_mask:
+    - layer_names:
+      - 'res2block_0_branch2b'
+      - 'res2block_0_branch1'
+      - 'res2block_1_branch2b'
+      - 'res2block_2_branch2b'
+      - 'res2block_3_branch2b'
+      - 'res2block_4_branch2b'
+      - 'res2block_5_branch2b'
+      - 'res2block_6_branch2b'
+      - 'res2block_7_branch2b'
+      - 'res2block_8_branch2b'
+    - layer_names:
+      - 'res3block_0_branch2b'
+      - 'res3block_0_branch1'
+      - 'res3block_1_branch2b'
+      - 'res3block_2_branch2b'
+      - 'res3block_3_branch2b'
+      - 'res3block_4_branch2b'
+      - 'res3block_5_branch2b'
+      - 'res3block_6_branch2b'
+      - 'res3block_7_branch2b'
+      - 'res3block_8_branch2b'
+    - layer_names:
+      - 'res4block_0_branch2b'
+      - 'res4block_0_branch1'
+      - 'res4block_1_branch2b'
+      - 'res4block_2_branch2b'
+      - 'res4block_3_branch2b'
+      - 'res4block_4_branch2b'
+      - 'res4block_5_branch2b'
+      - 'res4block_6_branch2b'
+      - 'res4block_7_branch2b'
+      - 'res4block_8_branch2b'
+
+  ResNet-50:
+    share_mask:
+    - layer_names:
+      - 'res2a_branch2c'
+      - 'res2a_branch1'
+      - 'res2b_branch2c'
+      - 'res2c_branch2c'
+    - layer_names:
+      - 'res3a_branch2c'
+      - 'res3a_branch1'
+      - 'res3b_branch2c'
+      - 'res3c_branch2c'
+      - 'res3d_branch2c'
+    - layer_names:
+      - 'res4a_branch2c'
+      - 'res4a_branch1'
+      - 'res4b_branch2c'
+      - 'res4c_branch2c'
+      - 'res4d_branch2c'
+      - 'res4e_branch2c'
+      - 'res4f_branch2c'
+    - layer_names:
+      - 'res5a_branch2c'
+      - 'res5a_branch1'
+      - 'res5b_branch2c'
+      - 'res5c_branch2c'
+  """
+  share_mask = []
+
+  if model_name == 'resnet56':
+
+    for stage in range(2, 5):
+      mask_sharing_config = pruning_base_configs.MaskSharingConfig()
+      prefix = 'res' + str(stage) + 'block_'
+      for block in range(9):
+        mask_sharing_config.layer_names.append(prefix + str(block) + '_branch2b')
+        if block == 0:
+          mask_sharing_config.layer_names.append(prefix + str(block) + '_branch1')
+      share_mask.append(mask_sharing_config)
+  elif model_name == 'resnet50':
+    stage_block_pairs = [(2, 3), (3, 4), (5, 6), (6, 3)]
+    for stage, blocks in stage_block_pairs:
+      mask_sharing_config = pruning_base_configs.MaskSharingConfig()
+      prefix = 'res' + str(stage)
+      for block in range(blocks):
+        block_str = string.ascii_lowercase[block]
+        mask_sharing_config.layer_names.append(prefix + block_str + '_branch2c')
+        if block == 0:
+          mask_sharing_config.layer_names.append(prefix + block_str + '_branch1')
+      share_mask.append(mask_sharing_config)
+  else:
+    raise ValueError
+
+
+def get_fancy_path(sparsity, schedule, granularity):
+  path = ''
+
+  ...
+
+  return path
+
+
+def generate_pruning_config(model_name,
+                            sparsity,
+                            end_step,
+                            schedule='ConstantSparsity',
+                            granularity='BlockSparsity',
+                            path=None):
+  """Generate a model pruning config out of sparsity configuration.
+
+  Arguments:
+    model_name: A `str`. 'mnist', 'resnet56' (CIFAR-10), 'resnet50' (ImageNet),
+      or 'mobilenetV1'.
+    sparsity: A `dict`. Keys are `str` representing layer names (or possibly a
+      regexp pattern), and values are sparsity (must be convertible to float).
+    schedule: 'ConstantSparsity' or 'PolynomialDecay'.
+    granularity: 'ArayaMag', 'BlockSparsity', 'ChannelPruning', 'KernelLevel',
+      or 'QuasiCyclic'.
+    path: `None` or a `str`. If `str`, saves the model pruning config as YAML
+      file.
+
+  Returns:
+    A ModelPruningConfig instance.
+  """
+
+  def get_pruning_schedule_config(_sparsity):
+    _sparsity = float(_sparsity)
+    config = dict(begin_step=0, end_step=end_step, frequency=100)
+    if schedule == 'ConstantSparsity':
+      config['target_sparsity'] = _sparsity
+    elif schedule == 'PolynomialDecay':
+      config['initial_sparsity'] = 0.
+      config['final_sparsity'] = _sparsity
+      config['power'] = 3
+    else:
+      raise ValueError
+    return pruning_base_configs.PruningScheduleConfig(
+      class_name=schedule,
+      config=config
+    )
+
+  def get_pruning_granularity_config(_sparsity):
+    _sparsity = float(_sparsity)
+    config = dict()
+    if granularity in ('ArayaMag', 'QuasiCyclic'):
+      config['gamma'] = int(1/_sparsity)
+    elif granularity == 'BlockSparsity':
+      config['block_size'] = (1, 1)
+      config['block_pooling_type'] = 'AVG'
+    elif granularity == 'ChannelPruning':
+      config['ch_axis'] = -1
+    elif granularity == 'KernelLevel':
+      config['ker_axis'] =(0, 1)
+    else:
+      raise ValueError
+    return pruning_base_configs.PruningGranularityConfig(
+      class_name=granularity,
+      config=config,
+    )
+
+  def get_pruning_config(_sparsity):
+    return pruning_base_configs.PruningConfig(
+      pruning_schedule=get_pruning_schedule_config(_sparsity),
+      pruning_granularity=get_pruning_granularity_config(_sparsity),
+    )
+
+  model_pruning_config = pruning_base_configs.ModelPruningConfig(
+      model_name=model_name,
+      pruning=[]
+  )
+
+  for layer_name, _sparsity in sparsity.items():
+    layer_pruning_config = pruning_base_configs.LayerPruningConfig(
+        layer_name=layer_name,
+        pruning = [
+            pruning_base_configs.WeightPruningConfig(
+                weight_name='kernel',
+                pruning=get_pruning_config(_sparsity),
+            )
+        ]
+    )
+    model_pruning_config.pruning.append(layer_pruning_config)
+
+  if granularity == 'ChannelPruning':
+    if model_name.startswith('resnet'):
+      model_pruning_config.share_mask = _get_resnet_share_mask(model_name)
+
+  if path:
+    params_dict.save_params_dict_to_yaml(model_pruning_config, path)
+
+  return model_pruning_config
