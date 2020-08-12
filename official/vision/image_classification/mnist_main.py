@@ -298,6 +298,9 @@ def define_mnist_flags():
   flags.DEFINE_bool('resume_checkpoint', None,
                     'Whether or not to enable load checkpoint loading. Defaults '
                     'to None.')
+  flags.DEFINE_string('checkpoint_dir', None,
+                      'The path to the directory where model checkpoints are '
+                      'saved.')
 
 
 def main(_):
