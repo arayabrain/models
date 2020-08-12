@@ -248,7 +248,7 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
           eval_input_dataset, steps=num_eval_steps, verbose=2)
       _stats = common.build_stats(history, _eval_output, callbacks)
       prefix = 'pruning_sensitivity/' + layer_name + '/' + 'kernel' + '/'
-      for key, value in _stats:
+      for key, value in _stats.items():
         tf.summary.scalar(prefix + key, data=value, step=sparsity_x_16)
   else:
     eval_output = model.evaluate(
