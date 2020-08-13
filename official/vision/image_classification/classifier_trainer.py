@@ -51,6 +51,7 @@ from official.vision.image_classification.pruning.mobilenet_v1 import mobilenet_
 from official.vision.image_classification.pruning.resnet_imagenet import resnet_imagenet_pruning_config
 from tensorflow_model_optimization.python.core.sparsity.keras import cpruning_callbacks
 from tensorflow_model_optimization.python.core.sparsity.keras import cprune
+from tensorflow_model_optimization.python.core.sparsity.keras import cprune_registry
 
 
 pp = pprint.PrettyPrinter()
@@ -508,6 +509,9 @@ def train_and_eval(
   if params.mode == 'sensitivity_analysis':
     file_writer = tf.summary.create_file_writer(flags.FLAGS.model_dir + '/metrics')
     file_writer.set_as_default()
+    cprune_registry.ConstraintRegistry.add_weight_constraint_pair(
+        'depthwise_kernel', 'depthwise_constraint')
+
     for sparsity_x_16 in range(16):
       cprune.apply_cpruning_masks(model, step=sparsity_x_16)
       _validation_output = model.evaluate(
@@ -522,6 +526,7 @@ def train_and_eval(
       _pruning_params = cprune_from_config.predict_sparsity(model, pruning_params)
       sparsity = _pruning_params['pruning'][0]['pruning'][0]['current_sparsity']
       tf.summary.scalar(prefix + 'sparsity', data=sparsity, step=sparsity_x_16)
+
   elif not params.evaluation.skip_eval or params.mode == 'eval':
     logging.info('Evaluate %s data', params.evaluation.eval_data)
     validation_output = model.evaluate(
