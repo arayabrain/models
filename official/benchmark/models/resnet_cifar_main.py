@@ -406,8 +406,8 @@ def define_cifar_flags():
       'sensitivity_layer_count',
       default=0,
       help='The ordinal number representing a layer whose pruning sensitivity '
-           'is to be analyzed. 0 for `"conv2d"` (the first layer), 3 for '
-           '`"dense_1"` (the last layer) etc. Valid only if '
+           'is to be analyzed. 0 for `"conv1"` (the first layer), 58 for '
+           '`"fc10"` (the last layer) etc. Valid only if '
            '`mode=sensitivity_analysis`.')
   flags.DEFINE_string(
       'sensitivity_granularity',
