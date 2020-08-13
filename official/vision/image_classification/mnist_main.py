@@ -189,8 +189,8 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
   initial_epoch = 0
   if flags_obj.resume_checkpoint:
     _initial_epoch = resume_from_checkpoint(model=model,
-                                           model_dir=flags_obj.checkpoint_dir,
-                                           train_steps=train_steps)
+                                            model_dir=flags_obj.checkpoint_dir,
+                                            train_steps=train_steps)
     if flags_obj.resume_checkpoint == flags_obj.model_dir:
       initial_epoch = _initial_epoch
 

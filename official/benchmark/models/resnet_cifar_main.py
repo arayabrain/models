@@ -285,9 +285,11 @@ def run(flags_obj):
 
     initial_epoch = 0
     if flags_obj.resume_checkpoint:
-      initial_epoch = resume_from_checkpoint(model=model,
-                                             model_dir=flags_obj.checkpoint_dir,
-                                             train_steps=steps_per_epoch)
+      _initial_epoch = resume_from_checkpoint(model=model,
+                                              model_dir=flags_obj.checkpoint_dir,
+                                              train_steps=steps_per_epoch)
+      if flags_obj.resume_checkpoint == flags_obj.model_dir:
+        initial_epoch = _initial_epoch
 
   model_pruning_config = None
   if flags_obj.pruning_config_file:
