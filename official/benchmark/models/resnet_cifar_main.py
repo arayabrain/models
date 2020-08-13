@@ -294,7 +294,9 @@ def run(flags_obj):
     model_pruning_config = cprune_from_config._expand_model_pruning_config(
         model, pruning_params
     )
-  callbacks = common.get_callbacks(steps_per_epoch)
+  callbacks = common.get_callbacks(steps_per_epoch,
+                                   enable_checkpoint_and_export=True,
+                                   model_dir=flags_obj.model_dir)
   for i, callback in enumerate(callbacks):
     if isinstance(callback, tf.keras.callbacks.TensorBoard):
       callbacks.pop(i)
