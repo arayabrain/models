@@ -282,7 +282,7 @@ def define_mnist_flags():
   flags.DEFINE_string(
       'mode',
       default=None,
-      help='Mode to run: `train_and_eval`, `eval`, or `sensitivity_analysis.')
+      help='Mode to run: `train_and_eval`, `eval`, or `sensitivity_analysis`.')
   flags.DEFINE_integer(
       'sensitivity_layer_count',
       default=0,
