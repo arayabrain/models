@@ -37,6 +37,7 @@ from official.vision.image_classification.pruning.mnist import mnist_pruning_con
 from tensorflow_model_optimization.python.core.sparsity.keras import cpruning_callbacks
 from tensorflow_model_optimization.python.core.sparsity.keras import cprune
 
+
 FLAGS = flags.FLAGS
 pp = pprint.PrettyPrinter()
 
@@ -253,7 +254,6 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
       _pruning_params = cprune_from_config.predict_sparsity(model, pruning_params)
       sparsity = _pruning_params['pruning'][0]['pruning'][0]['current_sparsity']
       tf.summary.scalar(prefix + 'sparsity', data=sparsity, step=sparsity_x_16)
-
   else:
     eval_output = model.evaluate(
         eval_input_dataset, steps=num_eval_steps, verbose=2)

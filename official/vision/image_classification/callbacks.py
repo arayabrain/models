@@ -33,7 +33,6 @@ from tensorflow_model_optimization.python.core.keras import compat
 from tensorflow_model_optimization.python.core.sparsity.keras.cprune_registry import ConstraintRegistry
 
 
-
 def get_callbacks(model_checkpoint: bool = True,
                   include_tensorboard: bool = True,
                   time_history: bool = True,
