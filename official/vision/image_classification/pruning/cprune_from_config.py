@@ -12,7 +12,6 @@ from tensorflow_model_optimization.python.core.sparsity.keras import cpruning_gr
 from tensorflow_model_optimization.python.core.sparsity.keras import cprune_registry
 import yaml
 
-from official.modeling.hyperparams import params_dict
 from official.vision.image_classification.pruning import  pruning_base_configs
 
 
@@ -484,5 +483,70 @@ def generate_pruning_config(model_name,
         #yaml.add_representer(list, _my_list_rep)
         yaml.dump(params.as_dict(), f, default_flow_style=False)
     save_params_dict_to_yaml(model_pruning_config, path)
+
+  return model_pruning_config
+
+
+def generate_sensitivity_config(model_name,
+                                layer_name,
+                                weight_name,
+                                granularity='BlockSparsity',
+                                gamma=2):
+  """Generate a model pruning config for pruning sensitivity analysis."""
+
+  def get_pruning_schedule_config():
+    config = dict(
+        initial_sparsity=0.0,
+        final_sparsity=15/16,
+        power=1,
+        begin_step=0,
+        end_step=15,
+        frequency=1,
+    )
+
+    return pruning_base_configs.PruningScheduleConfig(
+        class_name='PolynomialDecay',
+        config=config,
+    )
+
+  def get_pruning_granularity_config():
+    config = dict()
+    if granularity in ('ArayaMag', 'QuasiCyclic'):
+      config['gamma'] = gamma
+    elif granularity == 'BlockSparsity':
+      config['block_size'] = (1, 1)
+      config['block_pooling_type'] = 'AVG'
+    elif granularity == 'ChannelPruning':
+      config['ch_axis'] = -1
+    elif granularity == 'KernelLevel':
+      config['ker_axis'] =(0, 1)
+    else:
+      raise ValueError
+    return pruning_base_configs.PruningGranularityConfig(
+      class_name=granularity,
+      config=config,
+    )
+
+  def get_pruning_config():
+    return pruning_base_configs.PruningConfig(
+      pruning_schedule=get_pruning_schedule_config(),
+      pruning_granularity=get_pruning_granularity_config(),
+    )
+
+  model_pruning_config = pruning_base_configs.ModelPruningConfig(
+      model_name=model_name,
+      pruning=[]
+  )
+
+  layer_pruning_config = pruning_base_configs.LayerPruningConfig(
+    layer_name=layer_name,
+    pruning=[
+      pruning_base_configs.WeightPruningConfig(
+        weight_name=weight_name,
+        pruning=get_pruning_config(),
+      )
+    ]
+  )
+  model_pruning_config.pruning.append(layer_pruning_config)
 
   return model_pruning_config
