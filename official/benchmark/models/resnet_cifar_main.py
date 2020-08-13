@@ -281,13 +281,13 @@ def run(flags_obj):
                  if flags_obj.report_accuracy_metrics else None),
         run_eagerly=flags_obj.run_eagerly)
 
-  train_epochs = flags_obj.train_epochs
+    train_epochs = flags_obj.train_epochs
 
-  initial_epoch = 0
-  if flags_obj.resume_checkpoint:
-    initial_epoch = resume_from_checkpoint(model=model,
-                                           model_dir=flags_obj.checkpoint_dir,
-                                           train_steps=steps_per_epoch)
+    initial_epoch = 0
+    if flags_obj.resume_checkpoint:
+      initial_epoch = resume_from_checkpoint(model=model,
+                                             model_dir=flags_obj.checkpoint_dir,
+                                             train_steps=steps_per_epoch)
 
   model_pruning_config = None
   if flags_obj.pruning_config_file:
