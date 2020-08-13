@@ -18,6 +18,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import os
 import pprint
 
 from absl import app
@@ -247,6 +248,14 @@ def run(flags_obj):
     optimizer = common.get_optimizer(lr_schedule)
     model = resnet_cifar_model.resnet56(classes=cifar_preprocessing.NUM_CLASSES)
 
+    if flags_obj.model_weights_path:
+      if os.path.isdir(flags_obj.model_weights_path):
+        checkpoint = tf.train.latest_checkpoint(flags_obj.model_weights_path)
+      else:
+        checkpoint = flags_obj.model_weights_path
+      logging.info('Load weights from  %s', checkpoint)
+      model.load_weights(checkpoint)
+
     if flags_obj.mode == 'sensitivity_analysis' or flags_obj.pruning_config_file:
       if flags_obj.mode == 'sensitivity_analysis':
         if flags_obj.pruning_config_file:
@@ -285,11 +294,9 @@ def run(flags_obj):
 
     initial_epoch = 0
     if flags_obj.resume_checkpoint:
-      _initial_epoch = resume_from_checkpoint(model=model,
-                                              model_dir=flags_obj.checkpoint_dir,
-                                              train_steps=steps_per_epoch)
-      if flags_obj.resume_checkpoint == flags_obj.model_dir:
-        initial_epoch = _initial_epoch
+      initial_epoch = resume_from_checkpoint(model=model,
+                                             model_dir=flags_obj.model_dir,
+                                             train_steps=steps_per_epoch)
 
   model_pruning_config = None
   if flags_obj.pruning_config_file:
@@ -427,7 +434,7 @@ def define_cifar_flags():
   flags.DEFINE_bool('resume_checkpoint', None,
                     'Whether or not to enable load checkpoint loading. Defaults '
                     'to None.')
-  flags.DEFINE_string('checkpoint_dir', None,
+  flags.DEFINE_string('model_weights_path', None,
                       'The path to the directory where model checkpoints are '
                       'saved.')
 

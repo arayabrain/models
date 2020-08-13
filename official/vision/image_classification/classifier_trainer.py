@@ -380,6 +380,7 @@ def train_and_eval(
   with strategy_scope:
     model_params = params.model.model_params.as_dict()
     model = get_models()[params.model.name](**model_params)
+
     if params.model.model_weights_path:
       if os.path.isdir(params.model.model_weights_path):
         checkpoint = tf.train.latest_checkpoint(params.model.model_weights_path)

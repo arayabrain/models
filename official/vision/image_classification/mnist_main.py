@@ -150,6 +150,13 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
     optimizer = tf.keras.optimizers.SGD(learning_rate=lr_schedule)
 
     model = build_model()
+    if flags_obj.model_weights_path:
+      if os.path.isdir(flags_obj.model_weights_path):
+        checkpoint = tf.train.latest_checkpoint(flags_obj.model_weights_path)
+      else:
+        checkpoint = flags_obj.model_weights_path
+      logging.info('Load weights from  %s', checkpoint)
+      model.load_weights(checkpoint)
 
     if flags_obj.mode == 'sensitivity_analysis' or flags_obj.pruning_config_file:
       if flags_obj.mode == 'sensitivity_analysis':
@@ -188,11 +195,9 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
 
   initial_epoch = 0
   if flags_obj.resume_checkpoint:
-    _initial_epoch = resume_from_checkpoint(model=model,
-                                            model_dir=flags_obj.checkpoint_dir,
-                                            train_steps=train_steps)
-    if flags_obj.resume_checkpoint == flags_obj.model_dir:
-      initial_epoch = _initial_epoch
+    initial_epoch = resume_from_checkpoint(model=model,
+                                           model_dir=flags_obj.model_dir,
+                                           train_steps=train_steps)
 
   ckpt_full_path = os.path.join(flags_obj.model_dir, 'model.ckpt-{epoch:04d}')
   model_pruning_config = None
@@ -304,7 +309,7 @@ def define_mnist_flags():
   flags.DEFINE_bool('resume_checkpoint', None,
                     'Whether or not to enable load checkpoint loading. Defaults '
                     'to None.')
-  flags.DEFINE_string('checkpoint_dir', None,
+  flags.DEFINE_string('model_weights_path', None,
                       'The path to the directory where model checkpoints are '
                       'saved.')
 
