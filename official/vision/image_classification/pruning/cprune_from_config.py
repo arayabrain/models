@@ -273,7 +273,11 @@ def cprune_from_config(model, model_pruning_config):
       if layer.name in mask_sharing_dict['layer_names']:
         for weight_pruning_dict in mask_sharing_dict['pruning']:
           weight_name = weight_pruning_dict['weight_name']
-          constraint_name = cprune_registry.ConstraintRegistry._WEIGHTS_CONSTRAINS_MAP[weight_name]
+          weights_constraints_map = dict(
+            kernel='kernel_constraint',
+            depthwise_kernel='depthwise_constraint',
+          )
+          constraint_name = weights_constraints_map[weight_name]
           constraint = weight_pruning_dict['pruning']['constraint']
           layer_config[constraint_name] = constraint
     return layer.__class__.from_config(layer_config)
