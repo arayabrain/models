@@ -316,8 +316,8 @@ def define_classifier_flags():
       'sensitivity_layer_count',
       default=0,
       help='The ordinal number representing a layer whose pruning sensitivity '
-           'is to be analyzed. 0 for `"conv1"` (the first layer), 58 for '
-           '`"fc10"` (the last layer) etc. Valid only if '
+           'is to be analyzed. 0 for the first layer, 27 (MobileNet V1) and 53 '
+           '(ResNet-50) for the last layer, etc. Valid only if '
            '`mode=sensitivity_analysis`.')
   flags.DEFINE_string(
       'sensitivity_granularity',
@@ -563,7 +563,7 @@ def run(flags_obj: flags.FlagValues,
     Dictionary of training/eval stats
   """
   params = _get_params_from_flags(flags_obj)
-  if params.mode in ['train_and_eval', 'eval']:
+  if params.mode in ['train_and_eval', 'eval', 'sensitivity_analysis']:
     return train_and_eval(params, strategy_override)
   elif params.mode == 'export_only':
     export(params)
