@@ -164,6 +164,7 @@ def _deserialize_config(model, model_pruning_config):
       'ChannelPruning': pruning_granu.ChannelPruning,
       'KernelLevel': pruning_granu.KernelLevel,
       'QuasiCyclic': pruning_granu.QuasiCyclic,
+      'TwoOutOfFour': pruning_granu.TwoOutOfFour,
     }
     schedule = deserialize_keras_object(
       weight_pruning_dict['pruning']['pruning_schedule'],
