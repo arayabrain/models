@@ -510,9 +510,12 @@ def train_and_eval(
     file_writer.set_as_default()
     for sparsity_x_16 in range(16):
       cprune.apply_cpruning_masks(model, step=sparsity_x_16)
-      _eval_output = model.evaluate(
-        eval_dataset, steps=eval_steps, verbose=2, return_dict=True)
-      _stats = common.build_stats(history, _eval_output, callbacks)
+      _validation_output = model.evaluate(
+          eval_dataset, steps=eval_steps, verbose=2, return_dict=True)
+      _validation_output = [_validation_output['loss'],
+                            _validation_output['accuracy'],
+                            _validation_output['top_5_accuracy']]
+      _stats = common.build_stats(history, _validation_output, callbacks)
       prefix = 'pruning_sensitivity/' + layer_name + '/' + weight_name + '/'
       for key, value in _stats.items():
         tf.summary.scalar(prefix + key, data=value, step=sparsity_x_16)
