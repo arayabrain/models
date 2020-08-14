@@ -430,7 +430,7 @@ def generate_pruning_config(model_name,
     _sparsity = float(_sparsity)
     config = dict()
     if granularity in ('ArayaMag', 'QuasiCyclic'):
-      config['gamma'] = int(1/_sparsity)
+      config['gamma'] = int(1/(1.0 - _sparsity))
     elif granularity == 'BlockSparsity':
       config['block_size'] = (1, 1)
       config['block_pooling_type'] = 'AVG'
