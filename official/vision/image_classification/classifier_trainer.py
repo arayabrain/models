@@ -51,6 +51,7 @@ from official.vision.image_classification.pruning.mobilenet_v1 import mobilenet_
 from official.vision.image_classification.pruning.resnet_imagenet import resnet_imagenet_pruning_config
 from tensorflow_model_optimization.python.core.sparsity.keras import cpruning_callbacks
 from tensorflow_model_optimization.python.core.sparsity.keras import cprune
+from tensorflow_model_optimization.python.core.sparsity.keras import cprune_registry
 
 
 pp = pprint.PrettyPrinter()
@@ -284,7 +285,8 @@ def define_classifier_flags():
   flags.DEFINE_string(
       'mode',
       default=None,
-      help='Mode to run: `train`, `eval`, `train_and_eval` or `export`.')
+      help='Mode to run: `train`, `eval`, `train_and_eval`, `export`, or '
+           '`sensitivity_analysis`.')
   flags.DEFINE_bool(
       'run_eagerly',
       default=None,
@@ -311,6 +313,24 @@ def define_classifier_flags():
       '(eg, in a production environment).')
   flags.DEFINE_string('pruning_config_file', None,
                       'Path to a yaml file of model pruning configuration.')
+  flags.DEFINE_integer(
+      'sensitivity_layer_count',
+      default=0,
+      help='The ordinal number representing a layer whose pruning sensitivity '
+           'is to be analyzed. 0 for the first layer, 27 (MobileNet V1) and 53 '
+           '(ResNet-50) for the last layer, etc. Valid only if '
+           '`mode=sensitivity_analysis`.')
+  flags.DEFINE_string(
+      'sensitivity_granularity',
+      default='BlockSparsity',
+      help='The granularity for analyzing pruning sensitivity. Valid only if '
+           '`mode=sensitivity_analysis`.')
+  flags.DEFINE_integer(
+      'sensitivity_gamma',
+      default=2,
+      help='The gamma parameter for ArayaMag or QuasiCyclic granularity.'
+           ' for analyzing pruning sensitivity. Valid only if '
+           '`mode=sensitivity_analysis`.')
 
 
 def serialize_config(params: base_configs.ExperimentConfig,
@@ -361,6 +381,7 @@ def train_and_eval(
   with strategy_scope:
     model_params = params.model.model_params.as_dict()
     model = get_models()[params.model.name](**model_params)
+
     if params.model.model_weights_path:
       if os.path.isdir(params.model.model_weights_path):
         checkpoint = tf.train.latest_checkpoint(params.model.model_weights_path)
@@ -369,13 +390,30 @@ def train_and_eval(
       logging.info('Load weights from  %s', checkpoint)
       model.load_weights(checkpoint)
 
-    if flags.FLAGS.pruning_config_file:
+    if flags.FLAGS.mode == 'sensitivity_analysis' or flags.FLAGS.pruning_config_file:
+      if flags.FLAGS.mode == 'sensitivity_analysis':
+        if flags.FLAGS.pruning_config_file:
+          raise ValueError
 
-      pruning_params = get_pruning()[params.model.name]
+        layer = [
+            layer for layer in model.layers
+            if hasattr(layer, 'kernel') or hasattr(layer, 'depthwise_kernel')
+        ][flags.FLAGS.sensitivity_layer_count]
+        layer_name = layer.name
+        weight_name = 'kernel' if hasattr(layer, 'kernel') else 'depthwise_kernel'
 
-      params_dict.override_params_dict(
-          pruning_params, flags.FLAGS.pruning_config_file, is_strict=False)
-      logging.info('Specified pruning params: %s', pp.pformat(pruning_params.as_dict()))
+        pruning_params = cprune_from_config.generate_sensitivity_config(
+            model_name=model.name,
+            layer_name=layer_name,
+            weight_name=weight_name,
+            granularity=flags.FLAGS.sensitivity_granularity,
+            gamma=flags.FLAGS.sensitivity_gamma)
+      else:
+        pruning_params = get_pruning()[params.model.name]
+
+        params_dict.override_params_dict(
+            pruning_params, flags.FLAGS.pruning_config_file, is_strict=False)
+        logging.info('Specified pruning params: %s', pp.pformat(pruning_params.as_dict()))
 
       _pruning_params = cprune_from_config.predict_sparsity(model, pruning_params)
       logging.info('Understood pruning params: %s', pp.pformat(_pruning_params))
@@ -409,6 +447,7 @@ def train_and_eval(
                                              model_dir=params.model_dir,
                                              train_steps=train_steps)
 
+  callbacks = None
   if params.mode == 'train_and_eval':
     serialize_config(params=params, model_dir=params.model_dir)
     # TODO(dankondratyuk): callbacks significantly slow down training
@@ -432,8 +471,6 @@ def train_and_eval(
         cpruning_callbacks.UpdateCPruningStep(),
         # cpruning_callbacks.CPruningSummaries(log_dir=params.model_dir),
       ]
-  elif params.mode == 'eval':
-    callbacks = None
 
   if params.evaluation.skip_eval:
     validation_kwargs = {}
@@ -444,6 +481,7 @@ def train_and_eval(
         'validation_freq': params.evaluation.epochs_between_evals,
     }
 
+  history = None
   if params.mode == 'train_and_eval':
     history = model.fit(
         train_dataset,
@@ -454,31 +492,53 @@ def train_and_eval(
         verbose=flags.FLAGS.verbose,
         **validation_kwargs)
   elif params.mode == 'eval':
-    history = cprune.apply_cpruning_masks(model)
+    cprune.apply_cpruning_masks(model)
 
   if flags.FLAGS.pruning_config_file:
     _pruning_params = cprune_from_config.predict_sparsity(model, pruning_params)
     logging.info('Pruning result: %s', pp.pformat(_pruning_params))
 
   validation_output = None
-  if not params.evaluation.skip_eval or params.mode == 'eval':
-    if params.evaluation.eval_data == 'train':
-      eval_dataset = train_dataset
-      eval_steps = train_steps
-    elif params.evaluation.eval_data == 'validation':
-      eval_dataset = validation_dataset
-      eval_steps = validation_steps
+  if params.evaluation.eval_data == 'train':
+    eval_dataset = train_dataset
+    eval_steps = train_steps
+  elif params.evaluation.eval_data == 'validation':
+    eval_dataset = validation_dataset
+    eval_steps = validation_steps
 
+  if params.mode == 'sensitivity_analysis':
+    file_writer = tf.summary.create_file_writer(flags.FLAGS.model_dir + '/metrics')
+    file_writer.set_as_default()
+    cprune_registry.ConstraintRegistry.add_weight_constraint_pair(
+        'depthwise_kernel', 'depthwise_constraint')
+
+    for sparsity_x_16 in range(16):
+      cprune.apply_cpruning_masks(model, step=sparsity_x_16)
+      _validation_output = model.evaluate(
+          eval_dataset, steps=eval_steps, verbose=2, return_dict=True)
+      _validation_output = [_validation_output['loss'],
+                            _validation_output['accuracy'],
+                            _validation_output['top_5_accuracy']]
+      _stats = common.build_stats(history, _validation_output, callbacks)
+      prefix = 'pruning_sensitivity/' + layer_name + '/' + weight_name + '/'
+      for key, value in _stats.items():
+        tf.summary.scalar(prefix + key, data=value, step=sparsity_x_16)
+      _pruning_params = cprune_from_config.predict_sparsity(model, pruning_params)
+      sparsity = _pruning_params['pruning'][0]['pruning'][0]['current_sparsity']
+      tf.summary.scalar(prefix + 'sparsity', data=sparsity, step=sparsity_x_16)
+
+  elif not params.evaluation.skip_eval or params.mode == 'eval':
     logging.info('Evaluate %s data', params.evaluation.eval_data)
     validation_output = model.evaluate(
         eval_dataset, steps=eval_steps, verbose=2, return_dict=True)
 
+  if validation_output:
+    validation_output = [validation_output['loss'],
+                         validation_output['accuracy'],
+                         validation_output['top_5_accuracy']]
+
   # TODO(dankondratyuk): eval and save final test accuracy
-  stats = common.build_stats(history,
-                             [validation_output['loss'],
-                              validation_output['accuracy'],
-                              validation_output['top_5_accuracy']],
-                             callbacks)
+  stats = common.build_stats(history, validation_output, callbacks)
   return stats
 
 
@@ -511,7 +571,7 @@ def run(flags_obj: flags.FlagValues,
     Dictionary of training/eval stats
   """
   params = _get_params_from_flags(flags_obj)
-  if params.mode in ['train_and_eval', 'eval']:
+  if params.mode in ['train_and_eval', 'eval', 'sensitivity_analysis']:
     return train_and_eval(params, strategy_override)
   elif params.mode == 'export_only':
     export(params)

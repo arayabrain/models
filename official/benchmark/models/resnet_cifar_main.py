@@ -18,6 +18,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import os
 import pprint
 
 from absl import app
@@ -247,15 +248,38 @@ def run(flags_obj):
     optimizer = common.get_optimizer(lr_schedule)
     model = resnet_cifar_model.resnet56(classes=cifar_preprocessing.NUM_CLASSES)
 
-    if flags_obj.pruning_config_file:
-      pruning_params = resnet_cifar_pruning_config.ResNet56PruningConfig()
+    if flags_obj.model_weights_path:
+      if os.path.isdir(flags_obj.model_weights_path):
+        checkpoint = tf.train.latest_checkpoint(flags_obj.model_weights_path)
+      else:
+        checkpoint = flags_obj.model_weights_path
+      logging.info('Load weights from  %s', checkpoint)
+      model.load_weights(checkpoint)
 
-      params_dict.override_params_dict(
-          pruning_params, flags_obj.pruning_config_file, is_strict=False)
-      logging.info('Specified pruning params: %s', pp.pformat(pruning_params.as_dict()))
+    if flags_obj.mode == 'sensitivity_analysis' or flags_obj.pruning_config_file:
+      if flags_obj.mode == 'sensitivity_analysis':
+        if flags_obj.pruning_config_file:
+          raise ValueError
 
-      _params = cprune_from_config.predict_sparsity(model, pruning_params)
-      logging.info('Understood pruning params: %s', pp.pformat(_params))
+        layer_name = [
+            layer.name for layer in model.layers if hasattr(layer, 'kernel')
+        ][flags_obj.sensitivity_layer_count]
+
+        pruning_params = cprune_from_config.generate_sensitivity_config(
+            model_name='resnet56',
+            layer_name=layer_name,
+            weight_name='kernel',
+            granularity=flags_obj.sensitivity_granularity,
+            gamma=flags_obj.sensitivity_gamma)
+      else:
+        pruning_params = resnet_cifar_pruning_config.ResNet56PruningConfig()
+
+        params_dict.override_params_dict(
+            pruning_params, flags_obj.pruning_config_file, is_strict=False)
+        logging.info('Specified pruning params: %s', pp.pformat(pruning_params.as_dict()))
+
+      _pruning_params = cprune_from_config.predict_sparsity(model, pruning_params)
+      logging.info('Understood pruning params: %s', pp.pformat(_pruning_params))
 
       model = cprune_from_config.cprune_from_config(model, pruning_params)
 
@@ -266,20 +290,22 @@ def run(flags_obj):
                  if flags_obj.report_accuracy_metrics else None),
         run_eagerly=flags_obj.run_eagerly)
 
-  train_epochs = flags_obj.train_epochs
+    train_epochs = flags_obj.train_epochs
 
-  initial_epoch = 0
-  if flags_obj.resume_checkpoint:
-    initial_epoch = resume_from_checkpoint(model=model,
-                                           model_dir=flags_obj.model_dir,
-                                           train_steps=steps_per_epoch)
+    initial_epoch = 0
+    if flags_obj.resume_checkpoint:
+      initial_epoch = resume_from_checkpoint(model=model,
+                                             model_dir=flags_obj.model_dir,
+                                             train_steps=steps_per_epoch)
 
   model_pruning_config = None
   if flags_obj.pruning_config_file:
     model_pruning_config = cprune_from_config._expand_model_pruning_config(
         model, pruning_params
     )
-  callbacks = common.get_callbacks(steps_per_epoch)
+  callbacks = common.get_callbacks(steps_per_epoch,
+                                   enable_checkpoint_and_export=True,
+                                   model_dir=flags_obj.model_dir)
   for i, callback in enumerate(callbacks):
     if isinstance(callback, tf.keras.callbacks.TensorBoard):
       callbacks.pop(i)
@@ -337,15 +363,31 @@ def run(flags_obj):
   elif flags_obj.mode == 'eval':
     callbacks = None
     history = cprune.apply_cpruning_masks(model)
+  elif flags_obj.mode == 'sensitivity_analysis':
+    callbacks, history = None, None
   else:
     raise ValueError('{} is not a valid mode.'.format(flags.FLAGS.mode))
 
   if flags.FLAGS.pruning_config_file:
-    _params = cprune_from_config.predict_sparsity(model, pruning_params)
-    logging.info('Pruning result: %s', pp.pformat(_params))
+    _pruning_params = cprune_from_config.predict_sparsity(model, pruning_params)
+    logging.info('Pruning result: %s', pp.pformat(_pruning_params))
 
   eval_output = None
-  if not flags_obj.skip_eval:
+  if flags_obj.mode == 'sensitivity_analysis':
+    file_writer = tf.summary.create_file_writer(flags_obj.model_dir + '/metrics')
+    file_writer.set_as_default()
+    for sparsity_x_16 in range(16):
+      cprune.apply_cpruning_masks(model, step=sparsity_x_16)
+      _eval_output = model.evaluate(
+          eval_input_dataset, steps=num_eval_steps, verbose=2)
+      _stats = common.build_stats(history, _eval_output, callbacks)
+      prefix = 'pruning_sensitivity/' + layer_name + '/' + 'kernel' + '/'
+      for key, value in _stats.items():
+        tf.summary.scalar(prefix + key, data=value, step=sparsity_x_16)
+      _pruning_params = cprune_from_config.predict_sparsity(model, pruning_params)
+      sparsity = _pruning_params['pruning'][0]['pruning'][0]['current_sparsity']
+      tf.summary.scalar(prefix + 'sparsity', data=sparsity, step=sparsity_x_16)
+  elif not flags_obj.skip_eval:
     eval_output = model.evaluate(eval_input_dataset,
                                  steps=num_eval_steps,
                                  verbose=2)
@@ -368,12 +410,33 @@ def define_cifar_flags():
   flags.DEFINE_string('pruning_config_file', None,
                       'Path to a yaml file of model pruning configuration.')
   flags.DEFINE_string(
-    'mode',
-    default=None,
-    help='Mode to run: `train_and_eval` or `eval`.')
+      'mode',
+      default=None,
+      help='Mode to run: `train_and_eval`, `eval`, or `sensitivity_analysis`.')
+  flags.DEFINE_integer(
+      'sensitivity_layer_count',
+      default=0,
+      help='The ordinal number representing a layer whose pruning sensitivity '
+           'is to be analyzed. 0 for `"conv1"` (the first layer), 58 for '
+           '`"fc10"` (the last layer) etc. Valid only if '
+           '`mode=sensitivity_analysis`.')
+  flags.DEFINE_string(
+      'sensitivity_granularity',
+      default='BlockSparsity',
+      help='The granularity for analyzing pruning sensitivity. Valid only if '
+           '`mode=sensitivity_analysis`.')
+  flags.DEFINE_integer(
+      'sensitivity_gamma',
+      default=2,
+      help='The gamma parameter for ArayaMag or QuasiCyclic granularity.'
+           ' for analyzing pruning sensitivity. Valid only if '
+           '`mode=sensitivity_analysis`.')
   flags.DEFINE_bool('resume_checkpoint', None,
                     'Whether or not to enable load checkpoint loading. Defaults '
                     'to None.')
+  flags.DEFINE_string('model_weights_path', None,
+                      'The path to the directory where model checkpoints are '
+                      'saved.')
 
 
 def main(_):
