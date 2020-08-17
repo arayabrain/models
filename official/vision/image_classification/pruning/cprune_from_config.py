@@ -708,6 +708,7 @@ def prune_physically(model):
   assert len(model.layers) == len(new_model.layers)
   chin_controller = _get_chin_controller(model)
   for layer, new_layer in zip(model.layers, new_model.layers):
+    weights = layer.get_weights()
     assert type(layer) is type(new_layer)
     if type(layer) in (tf.keras.layers.Conv2D,
                        tf.keras.layers.DepthwiseConv2D,
@@ -737,9 +738,7 @@ def prune_physically(model):
               chin_indices = tf.concat(tensor_list, axis=0)
 
         kernel = tf.gather(kernel, indices=chin_indices, axis=chin_axis)
-
-      new_layer.set_weights([kernel])
-    else:
-      new_layer.set_weights(layer.get_weights())
+      weights[0] = kernel
+      new_layer.set_weights(weights)
 
   return new_model
