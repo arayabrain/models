@@ -734,7 +734,7 @@ def prune_physically(model):
               num_repeats, remainder = divmod(layer.input_shape[-1], prev_layer.filters)
               if remainder:
                 raise ValueError
-              tensor_list = [chin_indices + len(chin_indices) for i in range(num_repeats)]
+              tensor_list = [chin_indices + i * len(chin_indices) for i in range(num_repeats)]
               chin_indices = tf.concat(tensor_list, axis=0)
 
         kernel = tf.gather(kernel, indices=chin_indices, axis=chin_axis)
