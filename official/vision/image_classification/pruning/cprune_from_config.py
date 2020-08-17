@@ -722,4 +722,4 @@ def prune_physically(model):
     else:
       new_layer.set_weights(layer.get_weights())
 
-    return new_model
+  return new_model
