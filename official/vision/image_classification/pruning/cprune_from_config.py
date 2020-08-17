@@ -566,3 +566,160 @@ def generate_sensitivity_config(model_name,
   model_pruning_config.pruning.append(layer_pruning_config)
 
   return model_pruning_config
+
+
+def _get_nonvanishing_channels(weights, ch_axis=-1):
+  """Returns a list of indices along ch_axis with non-vanishing weights.
+
+  Arguments:
+    weights: A tensor, e.g. the kernel of a Conv2D layer.
+    ch_axis: An int which specifies the axis for channel pruning.
+
+  Returns:
+    indices: A integer vector which specifies the non-vanishing channels.
+  """
+  weights_shape = weights.shape.as_list()
+  norm_axis = list(range(len(weights_shape)))
+  norm_axis.pop(ch_axis)
+  saliences = math_ops.reduce_sum(tf.abs(weights), axis=norm_axis)
+  where = tf.greater(saliences, 0)
+  return tf.reshape(tf.where(where), [-1])
+
+
+def _get_chin_controller(model):
+  chin_controller = dict()
+
+  def get_conv_layers():
+    return [layer.name for layer in model.layers if type(layer)
+            in (tf.keras.layers.Conv2D, tf.keras.layers.DepthwiseConv2D)]
+
+  if model.name == 'mnist':
+    chin_controller['conv2d'] = None
+    chin_controller['conv2d_1'] = 'conv2d'
+
+  elif model.name == 'resnet56':
+    for conv_layer in get_conv_layers():
+      if conv_layer == 'conv1':
+        prev_conv_layer = None
+      else:
+        words = conv_layer.split('_')
+        assert len(words) == 3
+        if words[2] == 'branch2b':
+          words[2] = 'branch2a'
+        elif words[1] == '0':
+          if words[0] == 'res2block':
+            words = ['conv1']
+          elif words[0] == 'res3block':
+            words = ['res2block', '8', 'branch2b']
+          elif words[0] == 'res4block':
+            words = ['res3block', '8', 'branch2b']
+        else:
+          words[1] = str(int(words[1]) - 1)
+          words[2] = 'branch2b'
+        prev_conv_layer = '_'.join(words)
+      chin_controller[conv_layer] = prev_conv_layer
+
+  elif model.name == 'resnet50':
+    for conv_layer in get_conv_layers():
+      if conv_layer == 'conv1':
+        prev_conv_layer = None
+      else:
+        words = conv_layer.split('_')
+        assert len(words) == 2
+        if words[1] == 'branch2c':
+          words[1] = 'branch2b'
+        elif words[1] == 'branch2b':
+          words[1] = 'branch2a'
+        elif words[0][-1] == 'a':
+          if words[0][-2] == '2':
+            words = ['conv1']
+          elif words[0][-2] == '3':
+            words = ['res2c_branch2c']
+          elif words[0][-2] == '4':
+            words = ['res3d_branch2c']
+          elif words[0][-2] == '5':
+            words = ['res4f_branch2c']
+        else:
+          prev_chr = chr(ord(words[0][-1]) - 1)
+          words[0] = words[0][:-1] + prev_chr
+          words[1] = 'branch2c'
+        prev_conv_layer = '_'.join(words)
+      chin_controller[conv_layer] = prev_conv_layer
+
+  elif model.name == 'mobilenetV1':
+    for conv_layer in get_conv_layers():
+      if conv_layer == 'Conv2d_0':
+        prev_conv_layer = None
+      elif conv_layer == 'Conv2d_1_depthwise':
+        prev_conv_layer = 'Conv2d_0'
+      elif conv_layer == 'Conv2d_1c_1x1':
+        prev_conv_layer = 'Conv2d_13_pointwise'
+      else:
+        words = conv_layer.split('_')
+        assert len(words) == 3
+        if words[2] == 'depthwise':
+          words[1] = str(int(words[1]) - 1)
+          words[2] = 'pointwise'
+        elif words[2] == 'pointwise':
+          words[2] = 'depthwise'
+        else:
+          raise ValueError
+        prev_conv_layer = '_'.join(words)
+      chin_controller[conv_layer] = prev_conv_layer
+  else:
+    raise ValueError('Unknown model name: {}'.format(model.name))
+
+  return chin_controller
+
+
+def prune_physically(model):
+  """Physically reduces output channels of Conv2D layers after channel pruning.
+
+  Arguments:
+    model: A Keras model.
+
+  Returns:
+    new_model: Another model with reduced number of output channels.
+  """
+  chout_axis = -1
+  chin_axis = -2
+
+  def clone_function(layer):
+    layer_config = layer.get_config()
+    if type(layer) is tf.keras.layers.Conv2D:
+      assert layer.bias is None
+      layer_config['filters'] = len(_get_nonvanishing_channels(layer.kernel))
+    return layer.__class__.from_config(layer_config)
+
+  # Defines the new model architecture.
+  new_model = tf.keras.models.clone_model(
+      model, input_tensors=None, clone_function=clone_function)
+
+  # Copy relevant weights from the original.
+  assert len(model.layers) == len(new_model.layers)
+  chin_controller = _get_chin_controller(model)
+  for layer, new_layer in zip(model.layers, new_model.layers):
+    assert type(layer) is type(new_layer)
+    if type(layer) in (tf.keras.layers.Conv2D, tf.keras.layers.DepthwiseConv2D):
+      kernel = layer.kernel
+      assert layer.bias is None
+      print(layer.name)
+
+      # Gather slices along the output channel dimension.
+      chout_indices = _get_nonvanishing_channels(kernel, ch_axis=chout_axis)
+      kernel = tf.gather(kernel, indices=chout_indices, axis=chout_axis)
+
+      # Gather slices along the input channel dimension.
+      prev_layer_name = chin_controller[layer.name]
+      if prev_layer_name is not None:
+        prev_layer = model.get_layer(prev_layer_name)
+        assert type(prev_layer) in (tf.keras.layers.Conv2D, tf.keras.layers.DepthwiseConv2D)
+        assert prev_layer.bias is None
+        chin_indices = _get_nonvanishing_channels(prev_layer.kernel, ch_axis=chout_axis)
+        kernel = tf.gather(kernel, indices=chin_indices, axis=chin_axis)
+
+      new_layer.set_weights([kernel])
+    else:
+      new_layer.set_weights(layer.get_weights())
+
+    return new_model
