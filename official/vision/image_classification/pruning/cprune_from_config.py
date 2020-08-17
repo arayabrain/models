@@ -596,11 +596,15 @@ def _get_chin_controller(model):
   if model.name == 'mnist':
     chin_controller['conv2d'] = None
     chin_controller['conv2d_1'] = 'conv2d'
+    chin_controller['dense'] = 'conv2d_1'
+    chin_controller['dense_1'] = 'dense'
 
   elif model.name == 'resnet56':
     for conv_layer in get_conv_layers():
       if conv_layer == 'conv1':
         prev_conv_layer = None
+      elif conv_layer == 'fc10':
+        prev_conv_layer = 'res4block_8_branch2b'
       else:
         words = conv_layer.split('_')
         assert len(words) == 3
@@ -623,6 +627,8 @@ def _get_chin_controller(model):
     for conv_layer in get_conv_layers():
       if conv_layer == 'conv1':
         prev_conv_layer = None
+      elif conv_layer == 'fc1000':
+        prev_conv_layer = 'res5c_branch2c'
       else:
         words = conv_layer.split('_')
         assert len(words) == 2
@@ -666,6 +672,7 @@ def _get_chin_controller(model):
           raise ValueError
         prev_conv_layer = '_'.join(words)
       chin_controller[conv_layer] = prev_conv_layer
+
   else:
     raise ValueError('Unknown model name: {}'.format(model.name))
 
@@ -689,6 +696,9 @@ def prune_physically(model):
     if type(layer) is tf.keras.layers.Conv2D:
       assert layer.bias is None
       layer_config['filters'] = len(_get_nonvanishing_channels(layer.kernel))
+    elif type(layer) is tf.keras.layers.Dense:
+      assert layer.bias is None
+      layer_config['units'] = len(_get_nonvanishing_channels(layer.kernel))
     return layer.__class__.from_config(layer_config)
 
   # Defines the new model architecture.
@@ -700,10 +710,11 @@ def prune_physically(model):
   chin_controller = _get_chin_controller(model)
   for layer, new_layer in zip(model.layers, new_model.layers):
     assert type(layer) is type(new_layer)
-    if type(layer) in (tf.keras.layers.Conv2D, tf.keras.layers.DepthwiseConv2D):
+    if type(layer) in (tf.keras.layers.Conv2D,
+                       tf.keras.layers.DepthwiseConv2D,
+                       tf.keras.layers.Dense):
       kernel = layer.kernel
       assert layer.bias is None
-      print(layer.name)
 
       # Gather slices along the output channel dimension.
       chout_indices = _get_nonvanishing_channels(kernel, ch_axis=chout_axis)
