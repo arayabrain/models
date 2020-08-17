@@ -739,6 +739,6 @@ def prune_physically(model):
 
         kernel = tf.gather(kernel, indices=chin_indices, axis=chin_axis)
       weights[0] = kernel
-      new_layer.set_weights(weights)
+    new_layer.set_weights(weights)
 
   return new_model
