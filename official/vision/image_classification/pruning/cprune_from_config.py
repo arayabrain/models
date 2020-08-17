@@ -171,6 +171,7 @@ def _deserialize_config(model, model_pruning_config):
       'ChannelPruning': pruning_granu.ChannelPruning,
       'KernelLevel': pruning_granu.KernelLevel,
       'QuasiCyclic': pruning_granu.QuasiCyclic,
+      'TwoOutOfFour': pruning_granu.TwoOutOfFour,
     }
     schedule = deserialize_keras_object(
       weight_pruning_dict['pruning']['pruning_schedule'],
@@ -445,6 +446,8 @@ def generate_pruning_config(model_name,
       config['ch_axis'] = -1
     elif granularity == 'KernelLevel':
       config['ker_axis'] = [0, 1]
+    elif granularity == 'TwoOutOfFour':
+      config['block_axis'] = -1
     else:
       raise ValueError
     return pruning_base_configs.PruningGranularityConfig(
@@ -530,7 +533,9 @@ def generate_sensitivity_config(model_name,
     elif granularity == 'ChannelPruning':
       config['ch_axis'] = -1
     elif granularity == 'KernelLevel':
-      config['ker_axis'] =(0, 1)
+      config['ker_axis'] = (0, 1)
+    elif granularity == 'TwoOutOfFour':
+      config['block_axis'] = -1
     else:
       raise ValueError
     return pruning_base_configs.PruningGranularityConfig(
