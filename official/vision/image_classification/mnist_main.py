@@ -283,7 +283,7 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
       _stats = common.build_stats(history, _eval_output, callbacks)
       logging.info('Evaluation {} physical pruning: {}'.format(situation, _stats))
     export_path = os.path.join(flags_obj.model_dir, 'saved_model_small')
-    _model.save(export_path, include_optimizer=False)
+    smaller_model.save(export_path, include_optimizer=False)
   else:
     eval_output = model.evaluate(
         eval_input_dataset, steps=num_eval_steps, verbose=2)
