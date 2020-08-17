@@ -439,12 +439,12 @@ def generate_pruning_config(model_name,
     if granularity in ('ArayaMag', 'QuasiCyclic'):
       config['gamma'] = int(1/_sparsity)
     elif granularity == 'BlockSparsity':
-      config['block_size'] = (1, 1)
+      config['block_size'] = [1, 1]
       config['block_pooling_type'] = 'AVG'
     elif granularity == 'ChannelPruning':
       config['ch_axis'] = -1
     elif granularity == 'KernelLevel':
-      config['ker_axis'] =(0, 1)
+      config['ker_axis'] = [0, 1]
     else:
       raise ValueError
     return pruning_base_configs.PruningGranularityConfig(
