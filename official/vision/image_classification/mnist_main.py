@@ -190,8 +190,8 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
       smaller_model = cprune_from_config.prune_physically(model)
       models.append(smaller_model)
 
-    for model in models:
-      model.compile(
+    for _model in models:
+      _model.compile(
           optimizer=optimizer,
           loss='sparse_categorical_crossentropy',
           metrics=['sparse_categorical_accuracy'])
@@ -274,16 +274,16 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
     for layer, new_layer in zip(model.layers, smaller_model.layers):
       if type(layer) is tf.keras.layers.Conv2D:
         logging.info('    {}, {}, {}'.format(layer.name, layer.filters, new_layer.filters))
-    for i, model in enumerate(models):
-      situation = 'before' if i ==0 else 'after'
+    for i, _model in enumerate(models):
+      situation = 'before' if i == 0 else 'after'
       logging.info('Model summary {} physical pruning:'.format(situation))
-      model.summary(print_fn=logging.info)
-      _eval_output = model.evaluate(
+      _model.summary(print_fn=logging.info)
+      _eval_output = _model.evaluate(
           eval_input_dataset, steps=num_eval_steps, verbose=2)
       _stats = common.build_stats(history, _eval_output, callbacks)
       logging.info('Evaluation {} physical pruning: {}'.format(situation, _stats))
     export_path = os.path.join(flags_obj.model_dir, 'saved_model_small')
-    model.save(export_path, include_optimizer=False)
+    _model.save(export_path, include_optimizer=False)
   else:
     eval_output = model.evaluate(
         eval_input_dataset, steps=num_eval_steps, verbose=2)
