@@ -722,9 +722,20 @@ def prune_physically(model):
       prev_layer_name = chin_controller[layer.name]
       if prev_layer_name is not None:
         prev_layer = model.get_layer(prev_layer_name)
-        assert type(prev_layer) in (tf.keras.layers.Conv2D, tf.keras.layers.DepthwiseConv2D)
         assert prev_layer.bias is None
         chin_indices = _get_nonvanishing_channels(prev_layer.kernel, ch_axis=chout_axis)
+
+        if type(prev_layer) is tf.keras.layers.Conv2D:
+          if type(layer) is tf.keras.layers.Dense:
+            if tf.keras.backend.image_data_format() == 'channels_first':
+              raise ValueError
+            else:
+              num_repeats, remainder = divmod(layer.input_shape[-1], prev_layer.filters)
+              if remainder:
+                raise ValueError
+              tensor_list = [chin_indices + len(chin_indices) for i in range(num_repeats)]
+              chin_indices = tf.concat(tensor_list, axis=0)
+
         kernel = tf.gather(kernel, indices=chin_indices, axis=chin_axis)
 
       new_layer.set_weights([kernel])
