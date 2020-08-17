@@ -89,12 +89,19 @@ def _expand_model_pruning_config(model, model_pruning_config):
         layer_pruning_config = _expand_layer_pruning_config(layer, layer_pruning_config)
         _config_dict[_layer_name] = layer_pruning_config
       else:
+        count = 0
         for layer_name in all_layer_names:
           if re.search(_layer_name, layer_name):
             layer = model.get_layer(layer_name)
             layer_pruning_config = _expand_layer_pruning_config(layer, layer_pruning_config)
             layer_pruning_config.layer_name = layer_name
             _config_dict[layer_name] = layer_pruning_config
+            count += 1
+        if not count:
+          raise ValueError('The specified layer name {} does not exist, so we '
+                           'tried to interpret it as a regexp search pattern. '
+                           'However, `re.search` did not hit any existing layer '
+                           'names.'.format(_layer_name))
     for layer_name, layer_pruning_config in _config_dict.items():
       model_pruning_config.pruning.append(layer_pruning_config)
 
@@ -432,12 +439,12 @@ def generate_pruning_config(model_name,
     if granularity in ('ArayaMag', 'QuasiCyclic'):
       config['gamma'] = int(1/(1.0 - _sparsity))
     elif granularity == 'BlockSparsity':
-      config['block_size'] = (1, 1)
+      config['block_size'] = [1, 1]
       config['block_pooling_type'] = 'AVG'
     elif granularity == 'ChannelPruning':
       config['ch_axis'] = -1
     elif granularity == 'KernelLevel':
-      config['ker_axis'] =(0, 1)
+      config['ker_axis'] = [0, 1]
     else:
       raise ValueError
     return pruning_base_configs.PruningGranularityConfig(
