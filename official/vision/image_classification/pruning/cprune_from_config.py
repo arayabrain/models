@@ -697,7 +697,6 @@ def prune_physically(model):
       assert layer.bias is None
       layer_config['filters'] = len(_get_nonvanishing_channels(layer.kernel))
     elif type(layer) is tf.keras.layers.Dense:
-      assert layer.bias is None
       layer_config['units'] = len(_get_nonvanishing_channels(layer.kernel))
     return layer.__class__.from_config(layer_config)
 
@@ -714,7 +713,6 @@ def prune_physically(model):
                        tf.keras.layers.DepthwiseConv2D,
                        tf.keras.layers.Dense):
       kernel = layer.kernel
-      assert layer.bias is None
 
       # Gather slices along the output channel dimension.
       chout_indices = _get_nonvanishing_channels(kernel, ch_axis=chout_axis)
