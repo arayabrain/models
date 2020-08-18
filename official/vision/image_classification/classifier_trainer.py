@@ -285,8 +285,8 @@ def define_classifier_flags():
   flags.DEFINE_string(
       'mode',
       default=None,
-      help='Mode to run: `train`, `eval`, `train_and_eval`, `export`, or '
-           '`sensitivity_analysis`.')
+      help='Mode to run: `train`, `eval`, `train_and_eval`, `export`, '
+           '`sensitivity_analysis`, or `prune_physically`.')
   flags.DEFINE_bool(
       'run_eagerly',
       default=None,
@@ -420,6 +420,12 @@ def train_and_eval(
 
       model = cprune_from_config.cprune_from_config(model, pruning_params)
 
+    models = [model]
+
+    if flags.FLAGS.mode == 'prune_physically':
+      smaller_model = cprune_from_config.prune_physically(model)
+      models.append(smaller_model)
+
     learning_rate = optimizer_factory.build_learning_rate(
         params=params.model.learning_rate,
         batch_size=train_builder.global_batch_size,
@@ -437,9 +443,10 @@ def train_and_eval(
           label_smoothing=params.model.loss.label_smoothing)
     else:
       loss_obj = tf.keras.losses.SparseCategoricalCrossentropy()
-    model.compile(optimizer=optimizer,
-                  loss=loss_obj,
-                  metrics=metrics)
+    for _model in models:
+      _model.compile(optimizer=optimizer,
+                     loss=loss_obj,
+                     metrics=metrics)
 
     initial_epoch = 0
     if params.train.resume_checkpoint:
@@ -526,6 +533,29 @@ def train_and_eval(
       _pruning_params = cprune_from_config.predict_sparsity(model, pruning_params)
       sparsity = _pruning_params['pruning'][0]['pruning'][0]['current_sparsity']
       tf.summary.scalar(prefix + 'sparsity', data=sparsity, step=sparsity_x_16)
+
+  elif flags.FLAGS.mode == 'prune_physically':
+    logging.info('Number of filters before and after physical pruning:')
+    for layer, new_layer in zip(model.layers, smaller_model.layers):
+      if type(layer) is tf.keras.layers.Conv2D:
+        logging.info('    {}, {}, {}'.format(layer.name, layer.filters, new_layer.filters))
+      if type(layer) is tf.keras.layers.Dense:
+        logging.info('    {}, {}, {}'.format(layer.name, layer.units, new_layer.units))
+    for i, _model in enumerate(models):
+      situation = 'before' if i == 0 else 'after'
+      logging.info('Model summary {} physical pruning:'.format(situation))
+      _model.summary(print_fn=logging.info)
+      _validation_output = _model.evaluate(
+          eval_dataset, steps=eval_steps, verbose=2, return_dict=True)
+      _validation_output = [_validation_output['loss'],
+                            _validation_output['accuracy'],
+                            _validation_output['top_5_accuracy']]
+      _stats = common.build_stats(history, _validation_output, callbacks)
+      logging.info('Evaluation {} physical pruning: {}'.format(situation, _stats))
+
+      postfix = '' if i == 0 else '_small'
+      export_path = os.path.join(flags.FLAGS.model_dir, 'saved_model' + postfix)
+      _model.save(export_path, include_optimizer=False)
 
   elif not params.evaluation.skip_eval or params.mode == 'eval':
     logging.info('Evaluate %s data', params.evaluation.eval_data)
