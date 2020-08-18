@@ -709,7 +709,6 @@ def prune_physically(model):
   def clone_function(layer):
     layer_config = layer.get_config()
     if type(layer) is tf.keras.layers.Conv2D:
-      assert layer.bias is None
       layer_config['filters'] = len(_get_nonvanishing_channels(layer.kernel))
     elif type(layer) is tf.keras.layers.Dense:
       layer_config['units'] = len(_get_nonvanishing_channels(layer.kernel))
