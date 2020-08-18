@@ -253,8 +253,8 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
     _pruning_params = cprune_from_config.predict_sparsity(model, pruning_params)
     logging.info('Pruning result: %s', pp.pformat(_pruning_params))
 
+  eval_output = None
   if flags_obj.mode == 'sensitivity_analysis':
-    eval_output = None
     file_writer = tf.summary.create_file_writer(flags_obj.model_dir + '/metrics')
     file_writer.set_as_default()
     for sparsity_x_16 in range(16):
@@ -269,11 +269,12 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
       sparsity = _pruning_params['pruning'][0]['pruning'][0]['current_sparsity']
       tf.summary.scalar(prefix + 'sparsity', data=sparsity, step=sparsity_x_16)
   elif flags_obj.mode == 'prune_physically':
-    eval_output = None
     logging.info('Number of filters before and after physical pruning:')
     for layer, new_layer in zip(model.layers, smaller_model.layers):
       if type(layer) is tf.keras.layers.Conv2D:
         logging.info('    {}, {}, {}'.format(layer.name, layer.filters, new_layer.filters))
+      if type(layer) is tf.keras.layers.Dense:
+        logging.info('    {}, {}, {}'.format(layer.name, layer.units, new_layer.units))
     for i, _model in enumerate(models):
       situation = 'before' if i == 0 else 'after'
       logging.info('Model summary {} physical pruning:'.format(situation))
