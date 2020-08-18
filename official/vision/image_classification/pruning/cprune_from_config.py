@@ -738,8 +738,8 @@ def prune_physically(model):
       if prev_layer_name is not None:
         prev_layer = model.get_layer(prev_layer_name)
         assert prev_layer.bias is None
-        prev_layer_kernel = prev_layer.depthwise_kernel if type(layer) is tf.keras.layers.DepthwiseConv2D \
-            else prev_layer.kernel
+        prev_layer_kernel = prev_layer.depthwise_kernel \
+            if type(prev_layer) is tf.keras.layers.DepthwiseConv2D else prev_layer.kernel
         chin_indices = _get_nonvanishing_channels(prev_layer_kernel, ch_axis=chout_axis)
 
         if type(prev_layer) is tf.keras.layers.Conv2D:
