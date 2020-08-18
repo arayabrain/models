@@ -673,8 +673,6 @@ def _get_chin_controller(model):
         prev_layer_name = 'Conv2d_13_pointwise'
       elif layer_name.endswith('/BN'):
         prev_layer_name = layer_name[:-3]
-        if prev_layer_name.endswith('depthwise'):
-          prev_layer_name = chin_controller[prev_layer_name]
       else:
         words = layer_name.split('_')
         assert len(words) == 3
@@ -686,6 +684,10 @@ def _get_chin_controller(model):
         else:
           raise ValueError
         prev_layer_name = '_'.join(words)
+
+      if prev_layer_name.endswith('depthwise'):
+        prev_layer_name = chin_controller[prev_layer_name]
+
       chin_controller[layer_name] = prev_layer_name
 
   else:
