@@ -762,7 +762,7 @@ def prune_physically(model):
         prev_layer = model.get_layer(prev_layer_name)
         assert prev_layer.bias is None
         chout_indices = _get_nonvanishing_channels(prev_layer.kernel, ch_axis=chout_axis)
-        for i, weight in weights:
+        for i, weight in enumerate(weights):
           weights[i] = tf.gather(weight, indices=chout_indices, axis=chout_axis)
 
     new_layer.set_weights(weights)
