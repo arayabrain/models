@@ -426,24 +426,25 @@ def train_and_eval(
       smaller_model = cprune_from_config.prune_physically(model)
       models.append(smaller_model)
 
-    learning_rate = optimizer_factory.build_learning_rate(
-        params=params.model.learning_rate,
-        batch_size=train_builder.global_batch_size,
-        train_steps=train_steps)
-    optimizer = optimizer_factory.build_optimizer(
-        optimizer_name=params.model.optimizer.name,
-        base_learning_rate=learning_rate,
-        params=params.model.optimizer.as_dict())
-
-    metrics_map = _get_metrics(one_hot)
-    metrics = [metrics_map[metric] for metric in params.train.metrics]
-
-    if one_hot:
-      loss_obj = tf.keras.losses.CategoricalCrossentropy(
-          label_smoothing=params.model.loss.label_smoothing)
-    else:
-      loss_obj = tf.keras.losses.SparseCategoricalCrossentropy()
     for _model in models:
+      learning_rate = optimizer_factory.build_learning_rate(
+          params=params.model.learning_rate,
+          batch_size=train_builder.global_batch_size,
+          train_steps=train_steps)
+      optimizer = optimizer_factory.build_optimizer(
+          optimizer_name=params.model.optimizer.name,
+          base_learning_rate=learning_rate,
+          params=params.model.optimizer.as_dict())
+
+      metrics_map = _get_metrics(one_hot)
+      metrics = [metrics_map[metric] for metric in params.train.metrics]
+
+      if one_hot:
+        loss_obj = tf.keras.losses.CategoricalCrossentropy(
+            label_smoothing=params.model.loss.label_smoothing)
+      else:
+        loss_obj = tf.keras.losses.SparseCategoricalCrossentropy()
+
       _model.compile(optimizer=optimizer,
                      loss=loss_obj,
                      metrics=metrics)
