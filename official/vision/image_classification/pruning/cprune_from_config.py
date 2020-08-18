@@ -749,7 +749,7 @@ def prune_physically(model):
             if tf.keras.backend.image_data_format() == 'channels_first':
               staircase = tf.repeat(chin_indices * num_repeats, repeats=num_repeats)
               wave = tf.tile(tf.range(num_repeats), multiples=[len(chin_indices)] * num_repeats)
-              chin_indices = staircase + wave
+              chin_indices = staircase + tf.cast(wave, tf.int64)
             else:
               tensor_list = [chin_indices + i * prev_layer.filters for i in range(num_repeats)]
               chin_indices = tf.concat(tensor_list, axis=0)
