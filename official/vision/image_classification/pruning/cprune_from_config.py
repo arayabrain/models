@@ -685,8 +685,9 @@ def _get_chin_controller(model):
           raise ValueError
         prev_layer_name = '_'.join(words)
 
-      if prev_layer_name.endswith('depthwise'):
-        prev_layer_name = chin_controller[prev_layer_name]
+      if prev_layer_name:
+        if prev_layer_name.endswith('depthwise'):
+          prev_layer_name = chin_controller[prev_layer_name]
 
       chin_controller[layer_name] = prev_layer_name
 
