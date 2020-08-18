@@ -601,7 +601,7 @@ def run(flags_obj: flags.FlagValues,
     Dictionary of training/eval stats
   """
   params = _get_params_from_flags(flags_obj)
-  if params.mode in ['train_and_eval', 'eval', 'sensitivity_analysis']:
+  if params.mode in ['train_and_eval', 'eval', 'sensitivity_analysis', 'prune_physically']:
     return train_and_eval(params, strategy_override)
   elif params.mode == 'export_only':
     export(params)
