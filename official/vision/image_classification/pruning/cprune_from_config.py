@@ -728,12 +728,14 @@ def prune_physically(model):
 
         if type(prev_layer) is tf.keras.layers.Conv2D:
           if type(layer) is tf.keras.layers.Dense:
-            if tf.keras.backend.image_data_format() == 'channels_first':
+            num_repeats, remainder = divmod(layer.input_shape[-1], prev_layer.filters)
+            if remainder:
               raise ValueError
+            if tf.keras.backend.image_data_format() == 'channels_first':
+              staircase = tf.repeat(chin_indices * num_repeats, repeats=num_repeats)
+              wave = tf.tile(tf.range(num_repeats), multiples=len(chin_indices))
+              chin_indices = staircase + wave
             else:
-              num_repeats, remainder = divmod(layer.input_shape[-1], prev_layer.filters)
-              if remainder:
-                raise ValueError
               tensor_list = [chin_indices + i * prev_layer.filters for i in range(num_repeats)]
               chin_indices = tf.concat(tensor_list, axis=0)
 
