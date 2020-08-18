@@ -589,9 +589,12 @@ def _get_nonvanishing_channels(weights, ch_axis=-1):
 def _get_chin_controller(model):
   chin_controller = dict()
 
-  def get_conv_layers():
-    return [layer.name for layer in model.layers if type(layer)
-            in (tf.keras.layers.Conv2D, tf.keras.layers.DepthwiseConv2D)]
+  def get_layer_names():
+    return [layer.name for layer in model.layers if type(layer) in (
+        tf.keras.layers.Conv2D,
+        tf.keras.layers.DepthwiseConv2D,
+        tf.keras.layers.Dense,
+        tf.keras.layers.BatchNormalization)]
 
   if model.name == 'mnist':
     chin_controller['conv2d'] = None
@@ -600,13 +603,17 @@ def _get_chin_controller(model):
     chin_controller['dense_1'] = 'dense'
 
   elif model.name == 'resnet56':
-    for conv_layer in get_conv_layers():
-      if conv_layer == 'conv1':
-        prev_conv_layer = None
-      elif conv_layer == 'fc10':
-        prev_conv_layer = 'res4block_8_branch2b'
+    for layer_name in get_layer_names():
+      if layer_name == 'conv1':
+        prev_layer_name = None
+      elif layer_name == 'bn_conv1':
+        prev_layer_name = 'conv1'
+      elif layer_name.startswith('bn'):
+        prev_layer_name = 'res' + layer_name[2:]
+      elif layer_name == 'fc10':
+        prev_layer_name = 'res4block_8_branch2b'
       else:
-        words = conv_layer.split('_')
+        words = layer_name.split('_')
         assert len(words) == 3
         if words[2] == 'branch2b':
           words[2] = 'branch2a'
@@ -620,17 +627,21 @@ def _get_chin_controller(model):
         else:
           words[1] = str(int(words[1]) - 1)
           words[2] = 'branch2b'
-        prev_conv_layer = '_'.join(words)
-      chin_controller[conv_layer] = prev_conv_layer
+        prev_layer_name = '_'.join(words)
+      chin_controller[layer_name] = prev_layer_name
 
   elif model.name == 'resnet50':
-    for conv_layer in get_conv_layers():
-      if conv_layer == 'conv1':
-        prev_conv_layer = None
-      elif conv_layer == 'fc1000':
-        prev_conv_layer = 'res5c_branch2c'
+    for layer_name in get_layer_names():
+      if layer_name == 'conv1':
+        prev_layer_name = None
+      elif layer_name == 'bn_conv1':
+        prev_layer_name = 'conv1'
+      elif layer_name.startswith('bn'):
+        prev_layer_name = 'res' + layer_name[2:]
+      elif layer_name == 'fc1000':
+        prev_layer_name = 'res5c_branch2c'
       else:
-        words = conv_layer.split('_')
+        words = layer_name.split('_')
         assert len(words) == 2
         if words[1] == 'branch2c':
           words[1] = 'branch2b'
@@ -649,19 +660,23 @@ def _get_chin_controller(model):
           prev_chr = chr(ord(words[0][-1]) - 1)
           words[0] = words[0][:-1] + prev_chr
           words[1] = 'branch2c'
-        prev_conv_layer = '_'.join(words)
-      chin_controller[conv_layer] = prev_conv_layer
+        prev_layer_name = '_'.join(words)
+      chin_controller[layer_name] = prev_layer_name
 
   elif model.name == 'mobilenetV1':
-    for conv_layer in get_conv_layers():
-      if conv_layer == 'Conv2d_0':
-        prev_conv_layer = None
-      elif conv_layer == 'Conv2d_1_depthwise':
-        prev_conv_layer = 'Conv2d_0'
-      elif conv_layer == 'Conv2d_1c_1x1':
-        prev_conv_layer = 'Conv2d_13_pointwise'
+    for layer_name in get_layer_names():
+      if layer_name == 'Conv2d_0':
+        prev_layer_name = None
+      elif layer_name == 'Conv2d_1_depthwise':
+        prev_layer_name = 'Conv2d_0'
+      elif layer_name == 'Conv2d_1c_1x1':
+        prev_layer_name = 'Conv2d_13_pointwise'
+      elif layer_name.endswith('/BN'):
+        prev_layer_name = layer_name[:-3]
+        if prev_layer_name.endswith('depthwise'):
+          prev_layer_name = chin_controller[prev_layer_name]
       else:
-        words = conv_layer.split('_')
+        words = layer_name.split('_')
         assert len(words) == 3
         if words[2] == 'depthwise':
           words[1] = str(int(words[1]) - 1)
@@ -670,8 +685,8 @@ def _get_chin_controller(model):
           words[2] = 'depthwise'
         else:
           raise ValueError
-        prev_conv_layer = '_'.join(words)
-      chin_controller[conv_layer] = prev_conv_layer
+        prev_layer_name = '_'.join(words)
+      chin_controller[layer_name] = prev_layer_name
 
   else:
     raise ValueError('Unknown model name: {}'.format(model.name))
@@ -713,7 +728,7 @@ def prune_physically(model):
     if type(layer) in (tf.keras.layers.Conv2D,
                        tf.keras.layers.DepthwiseConv2D,
                        tf.keras.layers.Dense):
-      kernel = layer.kernel
+      kernel = layer.depthwise_kernel if type(layer) is tf.keras.layers.DepthwiseConv2D else layer.kernel
 
       # Gather slices along the output channel dimension.
       chout_indices = _get_nonvanishing_channels(kernel, ch_axis=chout_axis)
@@ -741,6 +756,15 @@ def prune_physically(model):
 
         kernel = tf.gather(kernel, indices=chin_indices, axis=chin_axis)
       weights[0] = kernel
+    elif type(layer) is tf.keras.layers.BatchNormalization:
+      prev_layer_name = chin_controller[layer.name]
+      if prev_layer_name is not None:
+        prev_layer = model.get_layer(prev_layer_name)
+        assert prev_layer.bias is None
+        chout_indices = _get_nonvanishing_channels(prev_layer.kernel, ch_axis=chout_axis)
+        for i, weight in weights:
+          weights[i] = tf.gather(weight, indices=chout_indices, axis=chout_axis)
+
     new_layer.set_weights(weights)
 
   return new_model
