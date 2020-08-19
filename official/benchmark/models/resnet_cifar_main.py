@@ -283,12 +283,19 @@ def run(flags_obj):
 
       model = cprune_from_config.cprune_from_config(model, pruning_params)
 
-    model.compile(
-        loss='sparse_categorical_crossentropy',
-        optimizer=optimizer,
-        metrics=(['sparse_categorical_accuracy']
-                 if flags_obj.report_accuracy_metrics else None),
-        run_eagerly=flags_obj.run_eagerly)
+    models = [model]
+
+    if flags_obj.mode == 'prune_physically':
+      smaller_model = cprune_from_config.prune_physically(model)
+      models.append(smaller_model)
+
+    for _model in models:
+      _model.compile(
+          loss='sparse_categorical_crossentropy',
+          optimizer=optimizer,
+          metrics=(['sparse_categorical_accuracy']
+                   if flags_obj.report_accuracy_metrics else None),
+          run_eagerly=flags_obj.run_eagerly)
 
     train_epochs = flags_obj.train_epochs
 
@@ -363,10 +370,13 @@ def run(flags_obj):
   elif flags_obj.mode == 'eval':
     callbacks = None
     history = cprune.apply_cpruning_masks(model)
-  elif flags_obj.mode == 'sensitivity_analysis':
+  elif flags_obj.mode in ('sensitivity_analysis', 'prune_physically'):
     callbacks, history = None, None
   else:
     raise ValueError('{} is not a valid mode.'.format(flags.FLAGS.mode))
+
+  export_path = os.path.join(flags_obj.model_dir, 'saved_model')
+  model.save(export_path, include_optimizer=False)
 
   if flags.FLAGS.pruning_config_file:
     _pruning_params = cprune_from_config.predict_sparsity(model, pruning_params)
@@ -387,6 +397,23 @@ def run(flags_obj):
       _pruning_params = cprune_from_config.predict_sparsity(model, pruning_params)
       sparsity = _pruning_params['pruning'][0]['pruning'][0]['current_sparsity']
       tf.summary.scalar(prefix + 'sparsity', data=sparsity, step=sparsity_x_16)
+  elif flags_obj.mode == 'prune_physically':
+    logging.info('Number of filters before and after physical pruning:')
+    for layer, new_layer in zip(model.layers, smaller_model.layers):
+      if type(layer) is tf.keras.layers.Conv2D:
+        logging.info('    {}, {}, {}'.format(layer.name, layer.filters, new_layer.filters))
+      if type(layer) is tf.keras.layers.Dense:
+        logging.info('    {}, {}, {}'.format(layer.name, layer.units, new_layer.units))
+    for i, _model in enumerate(models):
+      situation = 'before' if i == 0 else 'after'
+      logging.info('Model summary {} physical pruning:'.format(situation))
+      _model.summary(print_fn=logging.info)
+      _eval_output = _model.evaluate(
+          eval_input_dataset, steps=num_eval_steps, verbose=2)
+      _stats = common.build_stats(history, _eval_output, callbacks)
+      logging.info('Evaluation {} physical pruning: {}'.format(situation, _stats))
+    export_path = os.path.join(flags_obj.model_dir, 'saved_model_small')
+    smaller_model.save(export_path, include_optimizer=False)
   elif not flags_obj.skip_eval:
     eval_output = model.evaluate(eval_input_dataset,
                                  steps=num_eval_steps,
@@ -409,10 +436,13 @@ def define_cifar_flags():
 
   flags.DEFINE_string('pruning_config_file', None,
                       'Path to a yaml file of model pruning configuration.')
+
+
   flags.DEFINE_string(
       'mode',
       default=None,
-      help='Mode to run: `train_and_eval`, `eval`, or `sensitivity_analysis`.')
+      help='Mode to run: `train_and_eval`, `eval`, `sensitivity_analysis`, or '
+           '`prune_physically`.')
   flags.DEFINE_integer(
       'sensitivity_layer_count',
       default=0,

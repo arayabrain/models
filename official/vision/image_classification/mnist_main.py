@@ -184,10 +184,17 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
 
       model = cprune_from_config.cprune_from_config(model, pruning_params)
 
-    model.compile(
-        optimizer=optimizer,
-        loss='sparse_categorical_crossentropy',
-        metrics=['sparse_categorical_accuracy'])
+    models = [model]
+
+    if flags_obj.mode == 'prune_physically':
+      smaller_model = cprune_from_config.prune_physically(model)
+      models.append(smaller_model)
+
+    for _model in models:
+      _model.compile(
+          optimizer=optimizer,
+          loss='sparse_categorical_crossentropy',
+          metrics=['sparse_categorical_accuracy'])
 
   num_train_examples = mnist.info.splits['train'].num_examples
   train_steps = num_train_examples // flags_obj.batch_size
@@ -234,7 +241,7 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
   elif flags_obj.mode == 'eval':
     callbacks = None
     history = cprune.apply_cpruning_masks(model)
-  elif flags_obj.mode == 'sensitivity_analysis':
+  elif flags_obj.mode in ('sensitivity_analysis', 'prune_physically'):
     callbacks, history = None, None
   else:
     raise ValueError('{} is not a valid mode.'.format(flags.FLAGS.mode))
@@ -246,8 +253,8 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
     _pruning_params = cprune_from_config.predict_sparsity(model, pruning_params)
     logging.info('Pruning result: %s', pp.pformat(_pruning_params))
 
+  eval_output = None
   if flags_obj.mode == 'sensitivity_analysis':
-    eval_output = None
     file_writer = tf.summary.create_file_writer(flags_obj.model_dir + '/metrics')
     file_writer.set_as_default()
     for sparsity_x_16 in range(16):
@@ -261,6 +268,23 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
       _pruning_params = cprune_from_config.predict_sparsity(model, pruning_params)
       sparsity = _pruning_params['pruning'][0]['pruning'][0]['current_sparsity']
       tf.summary.scalar(prefix + 'sparsity', data=sparsity, step=sparsity_x_16)
+  elif flags_obj.mode == 'prune_physically':
+    logging.info('Number of filters before and after physical pruning:')
+    for layer, new_layer in zip(model.layers, smaller_model.layers):
+      if type(layer) is tf.keras.layers.Conv2D:
+        logging.info('    {}, {}, {}'.format(layer.name, layer.filters, new_layer.filters))
+      if type(layer) is tf.keras.layers.Dense:
+        logging.info('    {}, {}, {}'.format(layer.name, layer.units, new_layer.units))
+    for i, _model in enumerate(models):
+      situation = 'before' if i == 0 else 'after'
+      logging.info('Model summary {} physical pruning:'.format(situation))
+      _model.summary(print_fn=logging.info)
+      _eval_output = _model.evaluate(
+          eval_input_dataset, steps=num_eval_steps, verbose=2)
+      _stats = common.build_stats(history, _eval_output, callbacks)
+      logging.info('Evaluation {} physical pruning: {}'.format(situation, _stats))
+    export_path = os.path.join(flags_obj.model_dir, 'saved_model_small')
+    smaller_model.save(export_path, include_optimizer=False)
   else:
     eval_output = model.evaluate(
         eval_input_dataset, steps=num_eval_steps, verbose=2)
@@ -287,7 +311,8 @@ def define_mnist_flags():
   flags.DEFINE_string(
       'mode',
       default=None,
-      help='Mode to run: `train_and_eval`, `eval`, or `sensitivity_analysis`.')
+      help='Mode to run: `train_and_eval`, `eval`, `sensitivity_analysis`, or '
+           '`prune_physically`.')
   flags.DEFINE_integer(
       'sensitivity_layer_count',
       default=0,

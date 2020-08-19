@@ -1,7 +1,7 @@
 # Channel pruning configuration for MobileNet V1.
 model_name: 'mobilenetV1'
 pruning:
-  - layer_name: 'conv2d'
+  - layer_name: 'Conv2d_0'
     pruning:
       - weight_name: 'kernel'
         pruning:
