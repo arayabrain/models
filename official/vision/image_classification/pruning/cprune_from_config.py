@@ -397,6 +397,7 @@ def generate_pruning_config(model_name,
                             end_step,
                             schedule='ConstantSparsity',
                             granularity='BlockSparsity',
+                            respect_submatrix=False,
                             path=None):
   """Generate a model pruning config out of sparsity configuration.
 
@@ -411,6 +412,8 @@ def generate_pruning_config(model_name,
     schedule: 'ConstantSparsity' or 'PolynomialDecay'.
     granularity: 'ArayaMag', 'BlockSparsity', 'ChannelPruning', 'KernelLevel',
       or 'QuasiCyclic'.
+    respect_submatrix: A `bool`. Whether or not to mask weight tensors
+      submatrix-wise.
     path: `None` or a `str`. If `str`, saves the model pruning config as YAML
       file.
 
@@ -439,6 +442,8 @@ def generate_pruning_config(model_name,
     config = dict()
     if granularity in ('ArayaMag', 'QuasiCyclic'):
       config['gamma'] = int(1/(1.0 - _sparsity))
+      if respect_submatrix:
+        config['respect_submatrix'] = True
     elif granularity == 'BlockSparsity':
       config['block_size'] = [1, 1]
       config['block_pooling_type'] = 'AVG'
