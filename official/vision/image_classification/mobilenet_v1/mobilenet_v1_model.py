@@ -433,7 +433,10 @@ def mobilenet_v1(num_classes=1000,
         logits = tf.squeeze(logits, _axis, name='SpatialSqueeze')
       end_points['Logits'] = logits
       if prediction_fn:
-        logits = prediction_fn(name='Predictions')(logits)
+        if type(prediction_fn) == keras.layers.Activation:
+          logits = prediction_fn(logits)
+        else:
+          logits = prediction_fn(name='Predictions')(logits)
         end_points['Predictions'] = logits
   model = keras.models.Model(inputs, logits, name='mobilenetV1')
   # model = keras.models.Model(inputs, [logits, end_points], name='mobilenetV1')

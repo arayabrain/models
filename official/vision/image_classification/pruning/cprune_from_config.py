@@ -394,7 +394,8 @@ def _get_resnet_share_mask(model_name='resnet56'):
 
 def generate_pruning_config(model_name,
                             sparsity,
-                            end_step,
+                            begin_step=0,
+                            end_step=-1,
                             schedule='ConstantSparsity',
                             granularity='BlockSparsity',
                             respect_submatrix=False,
@@ -406,6 +407,7 @@ def generate_pruning_config(model_name,
       or 'mobilenetV1'.
     sparsity: A `dict`. Keys are `str` representing layer names (or possibly a
       regexp pattern), and values are sparsity (must be convertible to float).
+    begin_step: Step at which to begin pruning. `0` by default.
     end_step:  Step at which to end pruning. `-1` by default. `-1` implies
         continuing to prune till the end of training (available only for
         'ConstantSparsity' schedule).
@@ -423,7 +425,7 @@ def generate_pruning_config(model_name,
 
   def get_pruning_schedule_config(_sparsity):
     _sparsity = float(_sparsity)
-    config = dict(begin_step=0, end_step=end_step, frequency=100)
+    config = dict(begin_step=begin_step, end_step=end_step, frequency=100)
     if schedule == 'ConstantSparsity':
       config['target_sparsity'] = _sparsity
     elif schedule == 'PolynomialDecay':
