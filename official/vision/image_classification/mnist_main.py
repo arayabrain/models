@@ -184,6 +184,11 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
 
       model = cprune_from_config.cprune_from_config(model, pruning_params)
 
+    else:
+      weights_list = model.get_weights()
+      model = tf.keras.models.clone_model(model)
+      model.set_weights(weights_list)
+
     models = [model]
 
     if flags_obj.mode == 'prune_physically':
