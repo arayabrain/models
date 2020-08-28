@@ -331,6 +331,17 @@ def define_classifier_flags():
       help='The gamma parameter for ArayaMag or QuasiCyclic granularity.'
            ' for analyzing pruning sensitivity. Valid only if '
            '`mode=sensitivity_analysis`.')
+  flags.DEFINE_bool(
+      'sensitivity_respect_submatrix',
+      default=False,
+      help='Whether or not to apply pruning masks submatrix-wise. Valid only '
+           'for ArayaMag, QuasiCyclic, and TwoOutOfFour granularity.')
+  flags.DEFINE_bool(
+      'sensitivity_two_over_four_chin',
+      default=False,
+      help='Whether or not to realize two-out-of-four sparsity pattern along '
+           'input channels. Defaults to `False`, in which case the sparsity '
+           'pattern is achieved along the output channels.')
 
 
 def serialize_config(params: base_configs.ExperimentConfig,
@@ -407,7 +418,9 @@ def train_and_eval(
             layer_name=layer_name,
             weight_name=weight_name,
             granularity=flags.FLAGS.sensitivity_granularity,
-            gamma=flags.FLAGS.sensitivity_gamma)
+            gamma=flags.FLAGS.sensitivity_gamma,
+            respect_submatrix=flags.FLAGS.sensitivity_respect_submatrix,
+            two_over_four_chin=flags.FLAGS.sensitivity_two_over_four_chin)
       else:
         pruning_params = get_pruning()[params.model.name]
 
@@ -419,6 +432,11 @@ def train_and_eval(
       logging.info('Understood pruning params: %s', pp.pformat(_pruning_params))
 
       model = cprune_from_config.cprune_from_config(model, pruning_params)
+
+    else:
+      weights_list = model.get_weights()
+      model = tf.keras.models.clone_model(model)
+      model.set_weights(weights_list)
 
     models = [model]
 

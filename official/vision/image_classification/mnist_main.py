@@ -172,7 +172,9 @@ def run(flags_obj, datasets_override=None, strategy_override=None):
             layer_name=layer_name,
             weight_name='kernel',
             granularity=flags_obj.sensitivity_granularity,
-            gamma=flags_obj.sensitivity_gamma)
+            gamma=flags_obj.sensitivity_gamma,
+            respect_submatrix=flags_obj.sensitivity_respect_submatrix,
+            two_over_four_chin=flags_obj.sensitivity_two_over_four_chin)
       else:
         pruning_params = mnist_pruning_config.MNISTPruningConfig()
         params_dict.override_params_dict(
@@ -336,6 +338,17 @@ def define_mnist_flags():
       help='The gamma parameter for ArayaMag or QuasiCyclic granularity.'
            ' for analyzing pruning sensitivity. Valid only if '
            '`mode=sensitivity_analysis`.')
+  flags.DEFINE_bool(
+      'sensitivity_respect_submatrix',
+      default=False,
+      help='Whether or not to apply pruning masks submatrix-wise. Valid only '
+           'for ArayaMag, QuasiCyclic, and TwoOutOfFour granularity.')
+  flags.DEFINE_bool(
+      'sensitivity_two_over_four_chin',
+      default=False,
+      help='Whether or not to realize two-out-of-four sparsity pattern along '
+           'input channels. Defaults to `False`, in which case the sparsity '
+           'pattern is achieved along the output channels.')
   flags.DEFINE_bool('resume_checkpoint', None,
                     'Whether or not to enable load checkpoint loading. Defaults '
                     'to None.')

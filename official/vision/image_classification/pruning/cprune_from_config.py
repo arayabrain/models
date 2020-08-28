@@ -399,6 +399,8 @@ def generate_pruning_config(model_name,
                             schedule='ConstantSparsity',
                             granularity='BlockSparsity',
                             respect_submatrix=False,
+                            two_over_four_chin=False,
+                            ch_share=True,
                             path=None):
   """Generate a model pruning config out of sparsity configuration.
 
@@ -416,6 +418,10 @@ def generate_pruning_config(model_name,
       or 'QuasiCyclic'.
     respect_submatrix: A `bool`. Whether or not to mask weight tensors
       submatrix-wise.
+    two_over_four_chin: A `bool`. Whether or not to realize two-out-of-four
+      sparsity pattern along input channels. Defaults to `False`, in which case
+      the sparsity pattern is achieved along the output channels.
+    ch_share: A `bool`. Whether or not to share masks ac
     path: `None` or a `str`. If `str`, saves the model pruning config as YAML
       file.
 
@@ -454,7 +460,10 @@ def generate_pruning_config(model_name,
     elif granularity == 'KernelLevel':
       config['ker_axis'] = [0, 1]
     elif granularity == 'TwoOutOfFour':
-      config['block_axis'] = -1
+      block_axis = -2 if two_over_four_chin else -1
+      config['block_axis'] = block_axis
+      if respect_submatrix:
+        config['respect_submatrix'] = True
     else:
       raise ValueError
     return pruning_base_configs.PruningGranularityConfig(
@@ -485,7 +494,7 @@ def generate_pruning_config(model_name,
     )
     model_pruning_config.pruning.append(layer_pruning_config)
 
-  if granularity == 'ChannelPruning':
+  if granularity == 'ChannelPruning' and ch_share:
     if model_name.startswith('resnet'):
       model_pruning_config.share_mask = _get_resnet_share_mask(model_name)
 
@@ -512,7 +521,9 @@ def generate_sensitivity_config(model_name,
                                 layer_name,
                                 weight_name,
                                 granularity='BlockSparsity',
-                                gamma=2):
+                                gamma=2,
+                                respect_submatrix=False,
+                                two_over_four_chin=False):
   """Generate a model pruning config for pruning sensitivity analysis."""
 
   def get_pruning_schedule_config():
@@ -534,6 +545,8 @@ def generate_sensitivity_config(model_name,
     config = dict()
     if granularity in ('ArayaMag', 'QuasiCyclic'):
       config['gamma'] = gamma
+      if respect_submatrix:
+        config['respect_submatrix'] = True
     elif granularity == 'BlockSparsity':
       config['block_size'] = (1, 1)
       config['block_pooling_type'] = 'AVG'
@@ -542,7 +555,10 @@ def generate_sensitivity_config(model_name,
     elif granularity == 'KernelLevel':
       config['ker_axis'] = (0, 1)
     elif granularity == 'TwoOutOfFour':
-      config['block_axis'] = -1
+      block_axis = -2 if two_over_four_chin else -1
+      config['block_axis'] = block_axis
+      if respect_submatrix:
+        config['respect_submatrix'] = True
     else:
       raise ValueError
     return pruning_base_configs.PruningGranularityConfig(
