@@ -256,7 +256,77 @@ def resnet(num_blocks, classes=10, training=None):
   return model
 
 
+def resnet_no_lambda(num_blocks, classes=10, training=None):
+  """Instantiates the ResNet architecture without using Lambda layers.
+
+  Arguments:
+    num_blocks: integer, the number of conv/identity blocks in each block.
+      The ResNet contains 3 blocks with each block containing one conv block
+      followed by (layers_per_block - 1) number of idenity blocks. Each
+      conv/idenity block has 2 convolutional layers. With the input
+      convolutional layer and the pooling layer towards the end, this brings
+      the total size of the network to (6*num_blocks + 2)
+    classes: optional number of classes to classify images into
+    training: Only used if training keras model with Estimator.  In other
+    scenarios it is handled automatically.
+
+  Returns:
+    A Keras model instance.
+  """
+
+  input_shape = (32, 32, 3)
+  img_input = layers.Input(shape=input_shape)
+
+  if backend.image_data_format() == 'channels_first':
+    x = layers.Permute((3, 1, 2))(img_input)
+    bn_axis = 1
+  else:  # channel_last
+    x = img_input
+    bn_axis = 3
+
+  x = layers.ZeroPadding2D(padding=(1, 1), name='conv1_pad')(x)
+  x = layers.Conv2D(16, (3, 3),
+                    strides=(1, 1),
+                    padding='valid', use_bias=False,
+                    kernel_initializer='he_normal',
+                    kernel_regularizer=regularizers.l2(L2_WEIGHT_DECAY),
+                    name='conv1')(x)
+  x = layers.BatchNormalization(axis=bn_axis,
+                                momentum=BATCH_NORM_DECAY,
+                                epsilon=BATCH_NORM_EPSILON,
+                                name='bn_conv1',)(x, training=training)
+  x = layers.Activation('relu')(x)
+
+  x = resnet_block(x, size=num_blocks, kernel_size=3, filters=[16, 16],
+                   stage=2, conv_strides=(1, 1), training=training)
+
+  x = resnet_block(x, size=num_blocks, kernel_size=3, filters=[32, 32],
+                   stage=3, conv_strides=(2, 2), training=training)
+
+  x = resnet_block(x, size=num_blocks, kernel_size=3, filters=[64, 64],
+                   stage=4, conv_strides=(2, 2), training=training)
+
+  x = layers.GlobalAveragePooling2D()(x)
+  x = layers.Dense(classes,
+                   activation='softmax',
+                   kernel_initializer=initializers.RandomNormal(stddev=0.01),
+                   kernel_regularizer=regularizers.l2(L2_WEIGHT_DECAY),
+                   bias_regularizer=regularizers.l2(L2_WEIGHT_DECAY),
+                   name='fc10')(x)
+
+  inputs = img_input
+  # Create model.
+  model = tf.keras.models.Model(inputs, x, name='resnet56')
+
+  return model
+
+
 resnet20 = functools.partial(resnet, num_blocks=3)
 resnet32 = functools.partial(resnet, num_blocks=5)
 resnet56 = functools.partial(resnet, num_blocks=9)
 resnet10 = functools.partial(resnet, num_blocks=110)
+
+resnet20_no_lambda = functools.partial(resnet_no_lambda, num_blocks=3)
+resnet32_no_lambda = functools.partial(resnet_no_lambda, num_blocks=5)
+resnet56_no_lambda = functools.partial(resnet_no_lambda, num_blocks=9)
+resnet10_no_lambda = functools.partial(resnet_no_lambda, num_blocks=110)
